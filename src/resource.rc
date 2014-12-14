@@ -1,0 +1,157 @@
+#include <windows.h>
+#include <commctrl.h>
+#include "drivedotshield.h"
+#include "resource.h"
+
+LANGUAGE LANG_RUSSIAN, SUBLANG_DEFAULT
+
+//
+// Menu resources
+//
+IDM_MAIN MENU
+{
+    POPUP "Файл"
+    {
+        MENUITEM "Настройки", IDM_SETTINGS
+        MENUITEM SEPARATOR
+        MENUITEM "Выйти\tEsc", IDM_EXIT
+    }
+    POPUP "Помощь"
+    {
+        MENUITEM "Сайт программы", IDM_WEBSITE
+        MENUITEM "Проверить обновления", IDM_CHECK_UPDATES
+        MENUITEM "О программе", IDM_ABOUT
+    }
+}
+
+IDM_DRIVES_MENU MENU
+{
+    POPUP ""
+    {
+        MENUITEM "Открыть", IDM_OPEN
+        MENUITEM SEPARATOR
+        MENUITEM "Защитить", IDM_PROTECT
+        MENUITEM "Снять защиту", IDM_UNPROTECT
+        MENUITEM SEPARATOR
+        MENUITEM "Обновить", IDM_REFRESH
+        MENUITEM SEPARATOR
+        POPUP "Сервис"
+		{
+			MENUITEM "Заблокировать доступ", IDM_LOCK
+			MENUITEM "Разблокировать доступ", IDM_UNLOCK
+			MENUITEM "Разблокировать все диски", IDM_UNLOCK_ALL
+			MENUITEM SEPARATOR
+			MENUITEM "Проверить на ошибки", IDM_CHKDSK
+			MENUITEM "Проверить на ошибки и исправить", IDM_CHKDSK_REPAIR
+			MENUITEM SEPARATOR
+			MENUITEM "Извлечь", IDM_EJECT
+			MENUITEM "Форматировать", IDM_FORMAT
+		}
+        MENUITEM SEPARATOR
+        MENUITEM "Свойства", IDM_PROPERTIES
+    }
+}
+
+IDM_PROPERTIES_MENU MENU
+{
+    POPUP ""
+    {
+        MENUITEM "Копировать", IDM_PROPERTIES_COPY
+        MENUITEM "Обновить", IDM_PROPERTIES_REFRESH
+    }
+}
+
+//
+// Dialog resources
+//
+IDD_MAIN DIALOGEX 0, 0, 323, 171
+STYLE DS_CENTER | WS_POPUP | WS_SYSMENU | WS_CAPTION | DS_MODALFRAME | DS_SHELLFONT | WS_GROUP | WS_VISIBLE
+CAPTION APP_NAME
+MENU IDM_MAIN
+FONT 8, "Ms Shell Dlg"
+{
+    CONTROL         "", IDC_DRIVES, WC_LISTVIEW, WS_TABSTOP | WS_BORDER | LVS_SHOWSELALWAYS | LVS_NOSORTHEADER | LVS_REPORT, 8, 8, 307, 142
+    CONTROL         "", IDC_STATUSBAR, STATUSCLASSNAME, 0, 0, 158, 323, 13
+}
+
+IDD_SETTINGS DIALOGEX 0, 0, 242, 221
+STYLE WS_POPUP | WS_SYSMENU | WS_CAPTION | DS_MODALFRAME | DS_SHELLFONT
+CAPTION "Настройки"
+FONT 8, "Ms Shell Dlg"
+{
+    LTEXT           "Основные параметры", IDC_LABEL_1, 8, 8, 226, 8, SS_LEFT | SS_CENTERIMAGE
+    AUTOCHECKBOX    "Проверять обновления при запуске", IDC_CHECK_UPDATE_AT_STARTUP_CHK, 8, 20, 226, 10
+    AUTOCHECKBOX    "Поверх остальных окон", IDC_ALWAYS_ON_TOP_CHK, 8, 30, 226, 10
+	
+    LTEXT           "Параметры защиты", IDC_LABEL_2, 8, 46, 226, 8, SS_LEFT | SS_CENTERIMAGE
+    AUTOCHECKBOX    "Разрешить низкоуровневую защиту для FAT 16/32", IDC_ENABLE_LOWLEVEL_FAT_PROTECTION_CHK, 8, 58, 226, 10
+	
+    LTEXT           "Системные настройки", IDC_LABEL_3, 8, 74, 226, 8, SS_LEFT | SS_CENTERIMAGE
+    AUTOCHECKBOX    "Отключить автозапуск для всех устройств", IDC_NODRIVETYPEAUTORUN_CHK, 8, 86, 226, 10
+    AUTOCHECKBOX    "Отключить обработку файла autorun.inf", IDC_INIFILEMAPPING_CHK, 8, 96, 226, 10
+
+    LTEXT           "Язык интерфейса", IDC_LABEL_4, 8, 112, 226, 8, SS_LEFT | SS_CENTERIMAGE
+	COMBOBOX        IDC_LANGUAGE_CB, 8, 124, 135, 14, CBS_DROPDOWNLIST | CBS_HASSTRINGS
+	CONTROL			"", IDC_LANGUAGE_INFO, WC_LINK, LWS_USEVISUALSTYLE, 150, 126, 85, 10
+
+    DEFPUSHBUTTON   "Сохранить", IDC_OK, 134, 201, 50, 14
+    PUSHBUTTON      "Закрыть", IDC_CANCEL, 185, 201, 50, 14
+}
+
+IDD_PROPERTIES DIALOGEX 0, 0, 210, 190
+STYLE WS_POPUP | WS_SYSMENU | WS_CAPTION | DS_MODALFRAME | DS_SHELLFONT
+CAPTION "Свойства"
+FONT 8, "Ms Shell Dlg"
+{
+    CONTROL         "", IDC_PROPERTIES, WC_LISTVIEW, NOT WS_BORDER | WS_TABSTOP | LVS_SHOWSELALWAYS | LVS_REPORT | LVS_NOCOLUMNHEADER | LVS_NOSCROLL, 8, 8, 194, 147
+	DEFPUSHBUTTON   "OK", IDC_OK, 153, 170, 50, 14
+}
+
+//
+// String resources
+//
+STRINGTABLE
+{
+	IDS_TRANSLATION_INFO "English (by <a href=""http://www.henrypp.org"">Henry++</a>)"
+}
+
+//
+// Icon resources
+//
+IDI_MAIN	       		ICON           "res\\main.ico"
+IDI_NORMAL		       	ICON           "res\\normal.ico"
+IDI_PROTECTED       	ICON           "res\\protected.ico"
+IDI_INFECTED	     	ICON           "res\\infected.ico"
+IDI_LOCKED		     	ICON           "res\\locked.ico"
+
+//
+// Version Information resources
+//
+1 VERSIONINFO
+	FILEVERSION     APP_VERSION_RES
+    PRODUCTVERSION  APP_VERSION_RES
+    FILEOS          VOS__WINDOWS32
+    FILETYPE        VFT_APP
+    FILESUBTYPE     VFT2_UNKNOWN
+    FILEFLAGSMASK   0x00000000
+    FILEFLAGS       0x00000000
+{
+    BLOCK "StringFileInfo"
+    {
+        BLOCK "041904B0"
+        {
+            VALUE "Comments", APP_WEBSITE
+            VALUE "CompanyName", "Henry++"
+            VALUE "LegalCopyright", "Copyright © 2012 Henry++"
+            VALUE "OriginalFilename", APP_NAME_SHORT ".exe"
+            VALUE "FileDescription", APP_NAME
+			VALUE "FileVersion", APP_VERSION
+			VALUE "ProductName", APP_NAME
+            VALUE "ProductVersion", APP_VERSION
+        }
+    }
+    BLOCK "VarFileInfo"
+    {
+        VALUE "Translation", 0x0419, 1200
+    }
+}
