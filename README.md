@@ -11,7 +11,7 @@
 -------
 
 <p align="center">
-	<img src="https://www.henrypp.org/images/drivedotshield.png" />
+	<img src="https://www.henrypp.org/images/drivedotshield.png?cachefix" />
 </p>
 
 ### Description:
