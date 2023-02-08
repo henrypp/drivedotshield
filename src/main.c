@@ -912,7 +912,7 @@ LRESULT CALLBACK DlgProc
 			HICON hicon;
 			HMENU hmenu;
 			LONG dpi_value;
-			INT parts[4] = {-1};
+			INT parts[4] = {0};
 
 			_r_layout_initializemanager (&layout_manager, hwnd);
 
@@ -922,13 +922,14 @@ LRESULT CALLBACK DlgProc
 
 			_r_listview_addcolumn (hwnd, IDC_DRIVES, 0, L"Drive", _r_dc_getdpi (50, dpi_value), 0);
 			_r_listview_addcolumn (hwnd, IDC_DRIVES, 1, L"Label", _r_dc_getdpi (90, dpi_value), 0);
-			_r_listview_addcolumn (hwnd, IDC_DRIVES, 2, L"Type", _r_dc_getdpi (105, dpi_value), 0);
-			_r_listview_addcolumn (hwnd, IDC_DRIVES, 3, L"Filesystem", _r_dc_getdpi (115, dpi_value), 0);
-			_r_listview_addcolumn (hwnd, IDC_DRIVES, 4, L"Status", _r_dc_getdpi (95, dpi_value), 0);
+			_r_listview_addcolumn (hwnd, IDC_DRIVES, 2, L"Type", _r_dc_getdpi (90, dpi_value), 0);
+			_r_listview_addcolumn (hwnd, IDC_DRIVES, 3, L"Filesystem", _r_dc_getdpi (90, dpi_value), 0);
+			_r_listview_addcolumn (hwnd, IDC_DRIVES, 4, L"Status", _r_dc_getdpi (85, dpi_value), 0);
 
 			parts[0] = _r_dc_getdpi (120, dpi_value);
 			parts[1] = _r_dc_getdpi (240, dpi_value);
 			parts[2] = _r_dc_getdpi (360, dpi_value);
+			parts[3] = -1;
 
 			_r_status_setparts (hwnd, IDC_STATUSBAR, parts, RTL_NUMBER_OF (parts));
 
