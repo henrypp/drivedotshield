@@ -1,3 +1,9 @@
+v2.0.1 (x February 2023)
+- added per-monitor dpi support
+- improved protection feature
+- updated project sdk
+- fixed bugs
+
 v2.0 (15 August 2012)
 - added update checking feature
 - added number formattiong (1000 -> 1,000)
@@ -10,7 +16,7 @@ v1.2.1 (14 May 2011)
 - updated compiler
 - fixed about dialog
 - fixed administrator right checking
-- fixed, if drive is locked, then it opens anyway
+- fixed if drive is locked, then it opens anyway
 - fixed bugs
 - code optimization
 
