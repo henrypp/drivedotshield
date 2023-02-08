@@ -1,6 +1,6 @@
 @echo off
 
 cd ..\builder
-call build "Drive Dot Shield" 2.0.1 drivedotshield
+call build drivedotshield 2.0.1 "Drive Dot Shield"
 
 pause
