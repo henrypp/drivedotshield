@@ -1,4 +1,4 @@
-v2.0.1 (x February 2023)
+v2.0.1 (9 February 2023)
 - added arm64 build
 - added per-monitor dpi support
 - improved protection feature
