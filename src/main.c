@@ -165,16 +165,7 @@ VOID RefreshDrivesList (
 
 		if (!DriveIsLocked (drive))
 		{
-			GetVolumeInformation (
-				drive,
-				label,
-				RTL_NUMBER_OF (label),
-				NULL,
-				NULL,
-				NULL,
-				file_system,
-				RTL_NUMBER_OF (file_system)
-			);
+			GetVolumeInformation (drive, label, RTL_NUMBER_OF (label), NULL, NULL, NULL, file_system, RTL_NUMBER_OF (file_system));
 		}
 		else
 		{
@@ -276,7 +267,7 @@ VOID UnprotectDrive (
 
 	_r_str_printf (autorun_file, RTL_NUMBER_OF (autorun_file), L"%c:\\autorun.inf", drive[0]);
 
-	SetFileAttributes (autorun_file, FILE_ATTRIBUTE_NORMAL);
+	_r_fs_setattributes (autorun_file, NULL, FILE_ATTRIBUTE_NORMAL);
 
 	if (GetFileAttributes (autorun_file) & FILE_ATTRIBUTE_DIRECTORY)
 	{
@@ -293,15 +284,15 @@ VOID UnprotectDrive (
 
 				_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"\\\\?\\%s\\%s", autorun_file, wfd.cFileName);
 
-				SetFileAttributes (buffer, FILE_ATTRIBUTE_NORMAL);
+				_r_fs_setattributes (buffer, NULL, FILE_ATTRIBUTE_NORMAL);
 
 				if (wfd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
 				{
-					RemoveDirectory (buffer);
+					_r_fs_deletedirectory (buffer, TRUE);
 				}
 				else
 				{
-					DeleteFile (buffer);
+					_r_fs_deletefile (buffer, TRUE);
 				}
 			}
 			while (FindNextFile (hfind, &wfd));
@@ -309,11 +300,11 @@ VOID UnprotectDrive (
 			FindClose (hfind);
 		}
 
-		RemoveDirectory (autorun_file);
+		_r_fs_deletedirectory (autorun_file, TRUE);
 	}
 	else
 	{
-		DeleteFile (autorun_file);
+		_r_fs_deletefile (autorun_file, TRUE);
 	}
 }
 
@@ -324,30 +315,35 @@ VOID ProtectDrive (
 	HANDLE hfile;
 	WCHAR buffer[64];
 	WCHAR random[9];
+	NTSTATUS status;
 
 	UnprotectDrive (drive);
 
 	_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"\\\\?\\%c:\\autorun.inf", drive[0]);
 
-	CreateDirectory (buffer, NULL);
-	SetFileAttributes (buffer, FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_READONLY | FILE_ATTRIBUTE_SYSTEM);
+	status = _r_fs_createdirectory (buffer);
+
+	if (NT_SUCCESS (status))
+		_r_fs_setattributes (buffer, NULL, FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_READONLY | FILE_ATTRIBUTE_SYSTEM);
 
 	_r_str_generaterandom (random, RTL_NUMBER_OF (random), TRUE);
 
 	_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"\\\\?\\%c:\\autorun.inf\\%s.", drive[0], random);
 
-	hfile = CreateFile (
+	status = _r_fs_createfile (
 		buffer,
+		FILE_OPEN,
 		GENERIC_WRITE | GENERIC_READ,
 		FILE_SHARE_WRITE | FILE_SHARE_READ,
-		NULL,
-		CREATE_ALWAYS,
 		FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_READONLY | FILE_ATTRIBUTE_SYSTEM,
-		NULL
+		0,
+		FALSE,
+		NULL,
+		&hfile
 	);
 
-	if (hfile != INVALID_HANDLE_VALUE)
-		CloseHandle (hfile);
+	if (NT_SUCCESS (status))
+		NtClose (hfile);
 }
 
 BOOLEAN LockDrive (
@@ -359,12 +355,23 @@ BOOLEAN LockDrive (
 	DWORD locked;
 	SIZE_T drive_number;
 	BOOLEAN result;
+	NTSTATUS status;
 
 	_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"\\\\?\\%c:", drive[0]);
 
-	hfile = CreateFile (buffer, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
+	status = _r_fs_createfile (
+		buffer,
+		FILE_OPEN,
+		GENERIC_WRITE,
+		FILE_SHARE_READ | FILE_SHARE_WRITE,
+		FILE_ATTRIBUTE_NORMAL,
+		0,
+		TRUE,
+		NULL,
+		&hfile
+	);
 
-	if (hfile == INVALID_HANDLE_VALUE)
+	if (!NT_SUCCESS (status))
 		return FALSE;
 
 	drive_number = GetDriveNumber (drive);
@@ -387,12 +394,14 @@ BOOLEAN LockDrive (
 	if (DeviceIoControl (hfile, FSCTL_LOCK_VOLUME, NULL, 0, NULL, 0, &locked, NULL))
 	{
 		result = TRUE;
+
 		dl[drive_number].hdrive = hfile;
 	}
 	else
 	{
 		result = FALSE;
-		CloseHandle (hfile);
+
+		NtClose (hfile);
 	}
 
 	return result;
@@ -411,7 +420,8 @@ BOOLEAN UnlockDrive (
 		return FALSE;
 
 	DeviceIoControl (dl[drive_number].hdrive, FSCTL_UNLOCK_VOLUME, NULL, 0, NULL, 0, &locked, NULL);
-	CloseHandle (dl[drive_number].hdrive);
+
+	NtClose (dl[drive_number].hdrive);
 
 	dl[drive_number].hdrive = NULL;
 
@@ -448,27 +458,31 @@ BOOLEAN EjectDrive (
 	_In_ LPCWSTR drive
 )
 {
+	IO_STATUS_BLOCK iosb;
 	WCHAR buffer[64];
 	DWORD dio;
 	HANDLE hfile;
 	BOOLEAN result;
+	NTSTATUS status;
 
 	_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"\\\\?\\%c:", drive[0]);
 
-	hfile = CreateFile (
+	status = _r_fs_createfile (
 		buffer,
+		FILE_OPEN,
 		GENERIC_READ | GENERIC_WRITE,
 		FILE_SHARE_READ | FILE_SHARE_WRITE,
+		FILE_ATTRIBUTE_NORMAL,
+		FILE_WRITE_THROUGH,
+		TRUE,
 		NULL,
-		OPEN_EXISTING,
-		FILE_FLAG_WRITE_THROUGH,
-		NULL
+		&hfile
 	);
 
-	if (hfile == INVALID_HANDLE_VALUE)
+	if (!NT_SUCCESS (status))
 		return FALSE;
 
-	FlushFileBuffers (hfile);
+	NtFlushBuffersFile (hfile, &iosb);
 
 	if (DeviceIoControl (hfile, IOCTL_DISK_EJECT_MEDIA, NULL, 0, NULL, 0, &dio, NULL))
 	{
@@ -479,7 +493,7 @@ BOOLEAN EjectDrive (
 		result = FALSE;
 	}
 
-	CloseHandle (hfile);
+	NtClose (hfile);
 
 	return result;
 }
@@ -516,32 +530,14 @@ VOID RefreshDriveInfo (
 
 	if (!DriveIsLocked (drive->buffer))
 	{
-		GetVolumeInformation (
-			drive->buffer,
-			label,
-			RTL_NUMBER_OF (label),
-			&serial_number,
-			NULL,
-			NULL,
-			file_system,
-			RTL_NUMBER_OF (file_system)
-		);
+		GetVolumeInformation (drive->buffer, label, RTL_NUMBER_OF (label), &serial_number, NULL, NULL, file_system, RTL_NUMBER_OF (file_system));
 
 		GetDiskFreeSpaceEx (drive->buffer, 0, &total_space, &free_space);
 	}
 	else
 	{
-		_r_str_copy (
-			label,
-			RTL_NUMBER_OF (label),
-			L"unknown"
-		);
-
-		_r_str_copy (
-			file_system,
-			RTL_NUMBER_OF (file_system),
-			L"unknown"
-		);
+		_r_str_copy (label, RTL_NUMBER_OF (label), L"unknown");
+		_r_str_copy (file_system, RTL_NUMBER_OF (file_system), L"unknown");
 
 		serial_number = dl[drive_number].serial_number;
 
@@ -549,13 +545,7 @@ VOID RefreshDriveInfo (
 		free_space = dl[drive_number].free_space;
 	}
 
-	_r_listview_setitem (
-		hwnd,
-		IDC_PROPERTIES,
-		2,
-		1,
-		DriveIsLocked (drive->buffer) ? dl[drive_number].label : label
-	);
+	_r_listview_setitem (hwnd, IDC_PROPERTIES, 2, 1, DriveIsLocked (drive->buffer) ? dl[drive_number].label : label);
 
 	switch (GetDriveType (drive->buffer))
 	{
@@ -590,48 +580,19 @@ VOID RefreshDriveInfo (
 		}
 	}
 
-	_r_listview_setitem (
-		hwnd,
-		IDC_PROPERTIES,
-		4,
-		1,
-		DriveIsLocked (drive->buffer) ? dl[drive_number].file_system : file_system
-	);
-
+	_r_listview_setitem (hwnd, IDC_PROPERTIES, 4, 1, DriveIsLocked (drive->buffer) ? dl[drive_number].file_system : file_system);
 	_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"%04X-%04X", HIWORD (serial_number), LOWORD (serial_number));
 
 	_r_listview_setitem (hwnd, IDC_PROPERTIES, 5, 1, buffer);
 
 	_r_format_bytesize64 (buffer, RTL_NUMBER_OF (buffer), free_space.QuadPart);
-
-	_r_listview_setitem (
-		hwnd,
-		IDC_PROPERTIES,
-		6,
-		1,
-		buffer
-	);
+	_r_listview_setitem (hwnd, IDC_PROPERTIES, 6, 1, buffer);
 
 	_r_format_bytesize64 (buffer, RTL_NUMBER_OF (buffer), total_space.QuadPart - free_space.QuadPart);
-
-	_r_listview_setitem (
-		hwnd,
-		IDC_PROPERTIES,
-		7,
-		1,
-		buffer
-	);
-
+	_r_listview_setitem (hwnd, IDC_PROPERTIES, 7, 1, buffer);
 
 	_r_format_bytesize64 (buffer, RTL_NUMBER_OF (buffer), total_space.QuadPart);
-
-	_r_listview_setitem (
-		hwnd,
-		IDC_PROPERTIES,
-		8,
-		1,
-		buffer
-	);
+	_r_listview_setitem (hwnd, IDC_PROPERTIES, 8, 1, buffer);
 }
 
 INT_PTR CALLBACK PropertiesDlgProc (
@@ -707,18 +668,14 @@ INT_PTR CALLBACK PropertiesDlgProc (
 			if (!hsubmenu)
 			{
 				DestroyMenu (hmenu);
+
 				break;
 			}
 
 			if (!_r_listview_getselectedcount (hwnd, IDC_PROPERTIES))
 				_r_menu_enableitem (hsubmenu, IDM_REFRESH, MF_BYCOMMAND, FALSE);
 
-			_r_menu_popup (
-				hsubmenu,
-				hwnd,
-				NULL,
-				TRUE
-			);
+			_r_menu_popup (hsubmenu, hwnd, NULL, TRUE);
 
 			DestroyMenu (hmenu);
 
@@ -911,6 +868,7 @@ LRESULT CALLBACK DlgProc
 			HIMAGELIST himglist;
 			HICON hicon;
 			HMENU hmenu;
+			LONG width;
 			LONG dpi_value;
 			INT parts[4] = {0};
 
@@ -933,19 +891,17 @@ LRESULT CALLBACK DlgProc
 
 			_r_status_setparts (hwnd, IDC_STATUSBAR, parts, RTL_NUMBER_OF (parts));
 
-			himglist = ImageList_Create (
-				_r_dc_getsystemmetrics (SM_CXSMICON, dpi_value),
-				_r_dc_getsystemmetrics (SM_CYSMICON, dpi_value),
-				ILC_COLOR32,
-				0,
-				5
-			);
+			width = _r_dc_getsystemmetrics (SM_CXSMICON, dpi_value);
+
+			himglist = ImageList_Create (width, width, ILC_COLOR32, 0, 5);
 
 			for (INT i = IDI_NORMAL, j = 0; i < (IDI_LOCKED + 1); i++, j++)
 			{
-				hicon = LoadIcon (GetModuleHandle (NULL), MAKEINTRESOURCE (i));
+				_r_sys_loadicon (_r_sys_getimagebase (), MAKEINTRESOURCE (i), width, &hicon);
+
 				ImageList_AddIcon (himglist, hicon);
 				SendDlgItemMessage (hwnd, IDC_STATUSBAR, SB_SETICON, j, (LPARAM)ImageList_GetIcon (himglist, j, ILD_NORMAL));
+
 				DestroyIcon (hicon);
 			}
 
@@ -953,21 +909,8 @@ LRESULT CALLBACK DlgProc
 
 			if (hmenu)
 			{
-				_r_menu_checkitem (
-					hmenu,
-					IDM_ALWAYSONTOP_CHK,
-					0,
-					MF_BYCOMMAND,
-					_r_config_getboolean (L"AlwaysOnTop", FALSE)
-				);
-
-				_r_menu_checkitem (
-					hmenu,
-					IDM_CHECKUPDATES_CHK,
-					0,
-					MF_BYCOMMAND,
-					_r_update_isenabled (FALSE)
-				);
+				_r_menu_checkitem (hmenu, IDM_ALWAYSONTOP_CHK, 0, MF_BYCOMMAND, _r_config_getboolean (L"AlwaysOnTop", FALSE));
+				_r_menu_checkitem (hmenu, IDM_CHECKUPDATES_CHK, 0, MF_BYCOMMAND, _r_update_isenabled (FALSE));
 			}
 
 			SendDlgItemMessage (hwnd, IDC_DRIVES, LVM_SETIMAGELIST, LVSIL_SMALL, (LPARAM)himglist);
@@ -1008,6 +951,10 @@ LRESULT CALLBACK DlgProc
 				break;
 
 			hmenu = LoadMenu (NULL, MAKEINTRESOURCE (IDM_DRIVES));
+
+			if (!hmenu)
+				break;
+
 			hsubmenu = GetSubMenu (hmenu, 0);
 
 			if (_r_listview_getselectedcount (hwnd, IDC_DRIVES))
@@ -1036,7 +983,7 @@ LRESULT CALLBACK DlgProc
 					lpnmia = (LPNMITEMACTIVATE)lparam;
 
 					if (lpnmia->iItem != -1)
-						SendMessage (hwnd, WM_COMMAND, MAKELPARAM (IDM_OPEN, 0), 0);
+						PostMessage (hwnd, WM_COMMAND, MAKELPARAM (IDM_OPEN, 0), 0);
 
 					break;
 				}
@@ -1137,12 +1084,10 @@ LRESULT CALLBACK DlgProc
 				case IDM_PROTECT:
 				{
 					PR_STRING text;
-					INT item;
+					INT item = -1;
 
 					if (!_r_listview_getselectedcount (hwnd, IDC_DRIVES))
 						break;
-
-					item = -1;
 
 					while ((item = (INT)SendDlgItemMessage (hwnd, IDC_DRIVES, LVM_GETNEXTITEM, (WPARAM)item, LVNI_SELECTED)) >= 0)
 					{
@@ -1164,12 +1109,10 @@ LRESULT CALLBACK DlgProc
 				case IDM_UNPROTECT:
 				{
 					PR_STRING text;
-					INT item;
+					INT item = -1;
 
 					if (!_r_listview_getselectedcount (hwnd, IDC_DRIVES))
 						break;
-
-					item = -1;
 
 					while ((item = (INT)SendDlgItemMessage (hwnd, IDC_DRIVES, LVM_GETNEXTITEM, (WPARAM)item, LVNI_SELECTED)) >= 0)
 					{
@@ -1344,15 +1287,10 @@ INT APIENTRY wWinMain (
 {
 	HWND hwnd;
 
-	if (!_r_app_initialize ())
+	if (!_r_app_initialize (NULL))
 		return ERROR_APP_INIT_FAILURE;
 
-	hwnd = _r_app_createwindow (
-		hinst,
-		MAKEINTRESOURCE (IDD_MAIN),
-		MAKEINTRESOURCE (IDI_MAIN),
-		&DlgProc
-	);
+	hwnd = _r_app_createwindow (hinst, MAKEINTRESOURCE (IDD_MAIN), MAKEINTRESOURCE (IDI_MAIN), &DlgProc);
 
 	if (!hwnd)
 		return ERROR_APP_INIT_FAILURE;
