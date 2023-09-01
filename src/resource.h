@@ -33,6 +33,7 @@
 #define IDM_WEBSITE 40004
 #define IDM_CHECK_UPDATES 40005
 #define IDM_ABOUT 40006
+#define IDM_ZOOM 40007
 
 // Drives Menu
 #define IDM_OPEN 1000
