@@ -21,6 +21,11 @@
 #define IDC_DRIVES 100
 #define IDC_STATUSBAR 101
 
+// Settings Dlg
+#define IDC_NAV 100
+#define IDC_RESET 101
+#define IDC_CLOSE 102
+
 // Properties Dlg
 #define IDC_PROPERTIES 100
 #define IDC_OK 101
