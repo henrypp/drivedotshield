@@ -16,7 +16,7 @@
 
 #include "resource.h"
 
-DRIVE_LOCK dl[26] = {0};
+DRIVE_LOCK dl[PR_DEVICE_COUNT] = {0};
 
 SIZE_T _app_getdrivenumber (
 	_In_ LPCWSTR drive
@@ -44,7 +44,7 @@ BOOLEAN _app_driveisready (
 )
 {
 	WCHAR buffer[64];
-	ULONG old_error_mode;
+	ULONG old_error_mode = 0;
 	ULONG error_mode;
 	NTSTATUS status;
 
@@ -58,7 +58,7 @@ BOOLEAN _app_driveisready (
 	error_mode = SEM_FAILCRITICALERRORS;
 	NtSetInformationProcess (NtCurrentProcess (), ProcessDefaultHardErrorMode, &error_mode, sizeof (error_mode));
 
-	status = _r_fs_getdiskinformation (drive, NULL, NULL, NULL);
+	status = _r_fs_getdiskinformation (drive, NULL, NULL, NULL, NULL);
 
 	NtSetInformationProcess (NtCurrentProcess (), ProcessDefaultHardErrorMode, &old_error_mode, sizeof (old_error_mode));
 
@@ -140,7 +140,7 @@ VOID _app_refreshdrives (
 	PR_STRING label = NULL;
 	PR_STRING file_system = NULL;
 	SIZE_T drive_number;
-	ULONG drive_count;
+	ULONG drives;
 	LONG dpi_value;
 	DRIVE_STATUS status;
 	INT protected_count = 0;
@@ -166,11 +166,11 @@ VOID _app_refreshdrives (
 
 	_r_listview_deleteallitems (hwnd, IDC_DRIVES);
 
-	drive_count = GetLogicalDrives ();
+	_r_fs_getdisklist (&drives);
 
-	for (INT i = 0, j = 0; i < 26; i++)
+	for (INT i = 0, j = 0; i < PR_DEVICE_COUNT; i++)
 	{
-		if (!((drive_count >> i) & 0x00000001))
+		if (!((drives >> i) & 0x00000001))
 			continue;
 
 		_r_str_printf (drive, RTL_NUMBER_OF (drive), L"%c:", (65 + i));
@@ -190,7 +190,7 @@ VOID _app_refreshdrives (
 
 		if (!_app_driveislocked (drive))
 		{
-			_r_fs_getdiskinformation (drive, &label, &file_system, &dl[drive_number].serial_number);
+			_r_fs_getdiskinformation (drive, &label, &file_system, NULL, &dl[drive_number].serial_number);
 		}
 		else
 		{
@@ -336,7 +336,7 @@ VOID _app_unprotectdrive (
 		}
 		else
 		{
-			status = _r_fs_deletefile (autorun_file, TRUE);
+			status = _r_fs_deletefile (autorun_file);
 		}
 	}
 
@@ -380,7 +380,7 @@ BOOLEAN _app_lockdrive (
 
 	_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"%c:\\", drive[0]);
 
-	_r_fs_getdiskinformation (buffer, &dl[drive_number].label, &dl[drive_number].file_system, &dl[drive_number].serial_number);
+	_r_fs_getdiskinformation (buffer, &dl[drive_number].label, &dl[drive_number].file_system, NULL, &dl[drive_number].serial_number);
 
 	_r_fs_getdiskspace (buffer, &dl[drive_number].free_space, &dl[drive_number].total_space);
 
@@ -424,12 +424,12 @@ VOID _app_unlockalldrives (
 {
 	WCHAR buffer[64];
 
-	for (INT i = 0; i < 26; i++)
+	for (INT i = 0; i < PR_DEVICE_COUNT; i++)
 	{
 		if (!dl[i].hdrive)
 			continue;
 
-		for (i = 0; i < 26; i++)
+		for (i = 0; i < PR_DEVICE_COUNT; i++)
 		{
 			_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"%c:\\", i + 65);
 
@@ -516,7 +516,7 @@ VOID _app_refreshdriveinfo (
 
 	if (!_app_driveislocked (drive->buffer))
 	{
-		_r_fs_getdiskinformation (drive->buffer, &label, &file_system, &serial_number);
+		_r_fs_getdiskinformation (drive->buffer, &label, &file_system, NULL, &serial_number);
 
 		_r_fs_getdiskspace (drive->buffer, &free_space, &total_space);
 	}
@@ -602,7 +602,7 @@ INT_PTR CALLBACK PropertiesDlgProc (
 		{
 			RECT rect;
 
-			_r_wnd_center (hwnd, NULL);
+			_r_wnd_center (hwnd, GetParent (hwnd));
 
 			_r_listview_setstyle (hwnd, IDC_PROPERTIES, LVS_EX_FULLROWSELECT | LVS_EX_INFOTIP | LVS_EX_DOUBLEBUFFER, TRUE);
 
@@ -781,8 +781,6 @@ LRESULT CALLBACK DlgProc
 			LONG width;
 			LONG dpi_value;
 
-			_r_layout_initializemanager (&layout_manager, hwnd);
-
 			_r_listview_setstyle (hwnd, IDC_DRIVES, LVS_EX_FULLROWSELECT | LVS_EX_INFOTIP | LVS_EX_DOUBLEBUFFER, FALSE);
 
 			dpi_value = _r_dc_getwindowdpi (hwnd);
@@ -819,6 +817,8 @@ LRESULT CALLBACK DlgProc
 			SendDlgItemMessage (hwnd, IDC_DRIVES, LVM_SETIMAGELIST, LVSIL_SMALL, (LPARAM)himglist);
 
 			_app_refreshdrives (hwnd);
+
+			_r_layout_initializemanager (&layout_manager, hwnd);
 
 			break;
 		}
