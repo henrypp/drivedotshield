@@ -288,7 +288,7 @@ VOID _app_protectdrive (
 
 	if (!NT_SUCCESS (status) && status != STATUS_OBJECT_NAME_COLLISION)
 	{
-		_r_show_errormessage (hwnd, NULL, status, NULL);
+		_r_show_errormessage (hwnd, NULL, status, NULL, NULL, NULL);
 
 		return;
 	}
@@ -341,7 +341,7 @@ VOID _app_unprotectdrive (
 	}
 
 	if (!NT_SUCCESS (status) && status != STATUS_OBJECT_NAME_NOT_FOUND)
-		_r_show_errormessage (hwnd, NULL, status, NULL);
+		_r_show_errormessage (hwnd, NULL, status, NULL, NULL, NULL);
 }
 
 BOOLEAN _app_lockdrive (
@@ -371,7 +371,7 @@ BOOLEAN _app_lockdrive (
 
 	if (!NT_SUCCESS (status))
 	{
-		_r_show_errormessage (hwnd, NULL, status, NULL);
+		_r_show_errormessage (hwnd, NULL, status, NULL, NULL, NULL);
 
 		return FALSE;
 	}
@@ -469,7 +469,7 @@ BOOLEAN _app_ejectdrive (
 
 	if (!NT_SUCCESS (status))
 	{
-		_r_show_errormessage (hwnd, NULL, status, NULL);
+		_r_show_errormessage (hwnd, NULL, status, NULL, NULL, NULL);
 
 		return FALSE;
 	}
