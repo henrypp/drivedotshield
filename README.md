@@ -11,7 +11,7 @@
 -------
 
 <p align="center">
-	<img src="https://www.henrypp.org/images/drivedotshield.png?fiximage" />
+	<img src="/images/drivedotshield.png?fiximage" />
 </p>
 
 ### Description:
@@ -38,7 +38,7 @@ Binaries have GPG signature `drivedotshield.exe.sig` in application folder.
 - Key ID: 0x5635B5FD
 - Fingerprint: D985 2361 1524 AB29 BE73 30AC 2881 20A7 5635 B5FD
 
-Website: [www.henrypp.org](https://www.henrypp.org)<br />
-Support: support@henrypp.org<br />
+- Website: [github.com/henrypp](https://github.com/henrypp)
+- Support: sforce5@mail.ru
 <br />
 (c) 2012-2023 Henry++
