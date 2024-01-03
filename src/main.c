@@ -4,12 +4,6 @@
 
 #include "routine.h"
 
-#include <windows.h>
-#include <commctrl.h>
-#include <wininet.h>
-#include <shlobj.h>
-#include <winioctl.h>
-
 #include "app.h"
 #include "rapp.h"
 #include "main.h"
@@ -18,22 +12,22 @@
 
 DRIVE_LOCK dl[PR_DEVICE_COUNT] = {0};
 
-SIZE_T _app_getdrivenumber (
+ULONG_PTR _app_getdrivenumber (
 	_In_ LPCWSTR drive
 )
 {
-	return (SIZE_T)(drive[0] - 65);
+	return (ULONG_PTR)(drive[0] - 65);
 }
 
 BOOLEAN _app_driveislocked (
 	_In_ LPCWSTR drive
 )
 {
-	SIZE_T drive_number;
+	ULONG_PTR i;
 
-	drive_number = _app_getdrivenumber (drive);
+	i = _app_getdrivenumber (drive);
 
-	if (dl[drive_number].hdrive)
+	if (dl[i].hdrive)
 		return TRUE;
 
 	return FALSE;
@@ -58,7 +52,7 @@ BOOLEAN _app_driveisready (
 	error_mode = SEM_FAILCRITICALERRORS;
 	NtSetInformationProcess (NtCurrentProcess (), ProcessDefaultHardErrorMode, &error_mode, sizeof (error_mode));
 
-	status = _r_fs_getdiskinformation (drive, NULL, NULL, NULL, NULL);
+	status = _r_fs_getdiskinformation (NULL, drive, NULL, NULL, NULL, NULL);
 
 	NtSetInformationProcess (NtCurrentProcess (), ProcessDefaultHardErrorMode, &old_error_mode, sizeof (old_error_mode));
 
@@ -67,41 +61,41 @@ BOOLEAN _app_driveisready (
 
 DRIVE_STATUS _app_getdrivestatus (
 	_In_ LPCWSTR drive,
-	_Out_writes_z_ (buffer_size) LPWSTR status,
-	_In_ _In_range_ (1, PR_SIZE_MAX_STRING_LENGTH) SIZE_T buffer_size
+	_Out_writes_z_ (buffer_length) LPWSTR buffer,
+	_In_ _In_range_ (1, PR_SIZE_MAX_STRING_LENGTH) ULONG_PTR buffer_length
 )
 {
-	WCHAR buffer[64];
+	WCHAR path[64];
 	ULONG attributes;
 
 	if (_app_driveislocked (drive))
 	{
-		_r_str_copy (status, buffer_size, L"Locked");
+		_r_str_copy (buffer, buffer_length, L"Locked");
 
 		return DS_LOCKED;
 	}
 
-	_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"%c:\\autorun.inf", drive[0]);
+	_r_str_printf (path, RTL_NUMBER_OF (path), L"%c:\\autorun.inf", drive[0]);
 
-	if (_r_fs_exists (buffer))
+	if (_r_fs_exists (path))
 	{
-		_r_fs_getattributes (buffer, &attributes);
+		_r_fs_getattributes (path, &attributes);
 
 		if (attributes & FILE_ATTRIBUTE_DIRECTORY)
 		{
-			_r_str_copy (status, buffer_size, L"Protected");
+			_r_str_copy (buffer, buffer_length, L"Protected");
 
 			return DS_PROTECTED;
 		}
 		else
 		{
-			_r_str_copy (status, buffer_size, L"Infected");
+			_r_str_copy (buffer, buffer_length, L"Infected");
 
 			return DS_INFECTED;
 		}
 	}
 
-	_r_str_copy (status, buffer_size, L"Normal");
+	_r_str_copy (buffer, buffer_length, L"Normal");
 
 	return DS_NORMAL;
 }
@@ -139,7 +133,7 @@ VOID _app_refreshdrives (
 	WCHAR drive[8] = {0};
 	PR_STRING label = NULL;
 	PR_STRING file_system = NULL;
-	SIZE_T drive_number;
+	ULONG_PTR drive_number;
 	ULONG drives;
 	LONG dpi_value;
 	DRIVE_STATUS status;
@@ -190,7 +184,7 @@ VOID _app_refreshdrives (
 
 		if (!_app_driveislocked (drive))
 		{
-			_r_fs_getdiskinformation (drive, &label, &file_system, NULL, &dl[drive_number].serial_number);
+			_r_fs_getdiskinformation (NULL, drive, &label, &file_system, NULL, &dl[drive_number].serial_number);
 		}
 		else
 		{
@@ -201,7 +195,7 @@ VOID _app_refreshdrives (
 		_r_listview_setitem (hwnd, IDC_DRIVES, j, 1, _app_driveislocked (drive) ? dl[drive_number].label->buffer : _r_obj_getstringordefault (label, L"<empty>"));
 		_r_listview_setitem (hwnd, IDC_DRIVES, j, 3, _app_driveislocked (drive) ? dl[drive_number].file_system->buffer : file_system->buffer);
 
-		switch (GetDriveType (drive))
+		switch (GetDriveTypeW (drive))
 		{
 			case DRIVE_REMOVABLE:
 			{
@@ -272,7 +266,7 @@ VOID _app_refreshdrives (
 		_r_obj_dereference (file_system);
 }
 
-VOID _app_protectdrive (
+NTSTATUS _app_protectdrive (
 	_In_ HWND hwnd,
 	_In_ LPCWSTR drive
 )
@@ -287,11 +281,7 @@ VOID _app_protectdrive (
 	status = _r_fs_createdirectory (buffer, FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_READONLY | FILE_ATTRIBUTE_SYSTEM);
 
 	if (!NT_SUCCESS (status) && status != STATUS_OBJECT_NAME_COLLISION)
-	{
-		_r_show_errormessage (hwnd, NULL, status, NULL, NULL, NULL);
-
-		return;
-	}
+		return status;
 
 	_r_str_generaterandom (random, RTL_NUMBER_OF (random), TRUE);
 
@@ -311,9 +301,11 @@ VOID _app_protectdrive (
 
 	if (NT_SUCCESS (status))
 		NtClose (hfile);
+
+	return status;
 }
 
-VOID _app_unprotectdrive (
+NTSTATUS _app_unprotectdrive (
 	_In_ HWND hwnd,
 	_In_ LPCWSTR drive
 )
@@ -336,58 +328,50 @@ VOID _app_unprotectdrive (
 		}
 		else
 		{
-			status = _r_fs_deletefile (autorun_file);
+			status = _r_fs_deletefile (autorun_file, NULL);
 		}
 	}
 
-	if (!NT_SUCCESS (status) && status != STATUS_OBJECT_NAME_NOT_FOUND)
-		_r_show_errormessage (hwnd, NULL, status, NULL, NULL, NULL);
+	if (status == STATUS_OBJECT_NAME_NOT_FOUND)
+		status = STATUS_SUCCESS;
+
+	return status;
 }
 
-BOOLEAN _app_lockdrive (
+NTSTATUS _app_lockdrive (
 	_In_ HWND hwnd,
 	_In_ LPCWSTR drive
 )
 {
+	IO_STATUS_BLOCK isb;
 	HANDLE hfile;
 	WCHAR buffer[64];
-	SIZE_T drive_number;
-	BOOLEAN is_success = FALSE;
+	ULONG_PTR drive_number;
 	NTSTATUS status;
 
 	_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"\\\\?\\%c:", drive[0]);
 
-	status = _r_fs_createfile (
+	status = _r_fs_openfile (
 		buffer,
-		FILE_OPEN,
-		GENERIC_WRITE,
+		FILE_GENERIC_READ | GENERIC_WRITE,
 		FILE_SHARE_READ | FILE_SHARE_WRITE,
-		FILE_ATTRIBUTE_NORMAL,
-		0,
 		FALSE,
-		NULL,
 		&hfile
 	);
 
 	if (!NT_SUCCESS (status))
-	{
-		_r_show_errormessage (hwnd, NULL, status, NULL, NULL, NULL);
-
-		return FALSE;
-	}
+		return status;
 
 	drive_number = _app_getdrivenumber (drive);
 
-	_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"%c:\\", drive[0]);
+	_r_fs_getdiskinformation (hfile, NULL, &dl[drive_number].label, &dl[drive_number].file_system, NULL, &dl[drive_number].serial_number);
 
-	_r_fs_getdiskinformation (buffer, &dl[drive_number].label, &dl[drive_number].file_system, NULL, &dl[drive_number].serial_number);
+	_r_fs_getdiskspace (hfile, NULL, &dl[drive_number].free_space, &dl[drive_number].total_space);
 
-	_r_fs_getdiskspace (buffer, &dl[drive_number].free_space, &dl[drive_number].total_space);
+	status = NtFsControlFile (hfile, NULL, NULL, NULL, &isb, FSCTL_LOCK_VOLUME, NULL, 0, NULL, 0);
 
-	if (DeviceIoControl (hfile, FSCTL_LOCK_VOLUME, NULL, 0, NULL, 0, NULL, NULL))
+	if (NT_SUCCESS (status))
 	{
-		is_success = TRUE;
-
 		dl[drive_number].hdrive = hfile;
 	}
 	else
@@ -395,27 +379,29 @@ BOOLEAN _app_lockdrive (
 		NtClose (hfile);
 	}
 
-	return is_success;
+	return status;
 }
 
-BOOLEAN _app_unlockdrive (
+NTSTATUS _app_unlockdrive (
 	_In_ LPCWSTR drive
 )
 {
-	SIZE_T drive_number;
+	IO_STATUS_BLOCK isb;
+	ULONG_PTR drive_number;
+	NTSTATUS status;
 
 	drive_number = _app_getdrivenumber (drive);
 
 	if (!dl[drive_number].hdrive)
-		return FALSE;
+		return STATUS_INVALID_HANDLE;
 
-	DeviceIoControl (dl[drive_number].hdrive, FSCTL_UNLOCK_VOLUME, NULL, 0, NULL, 0, NULL, NULL);
+	status = NtFsControlFile (dl[drive_number].hdrive, NULL, NULL, NULL, &isb, FSCTL_UNLOCK_VOLUME, NULL, 0, NULL, 0);
 
 	NtClose (dl[drive_number].hdrive);
 
 	dl[drive_number].hdrive = NULL;
 
-	return TRUE;
+	return status;
 }
 
 VOID _app_unlockalldrives (
@@ -442,46 +428,36 @@ VOID _app_unlockalldrives (
 	_app_refreshdrives (hwnd);
 }
 
-BOOLEAN _app_ejectdrive (
+NTSTATUS _app_ejectdrive (
 	_In_ HWND hwnd,
 	_In_ LPCWSTR drive
 )
 {
+	IO_STATUS_BLOCK isb;
 	WCHAR buffer[64];
-	ULONG return_length;
 	HANDLE hfile;
-	BOOLEAN is_success = FALSE;
 	NTSTATUS status;
 
 	_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"\\\\?\\%c:", drive[0]);
 
-	status = _r_fs_createfile (
+	status = _r_fs_openfile (
 		buffer,
-		FILE_OPEN,
-		GENERIC_READ | GENERIC_WRITE,
+		FILE_GENERIC_READ | GENERIC_WRITE,
 		FILE_SHARE_READ | FILE_SHARE_WRITE,
-		FILE_ATTRIBUTE_NORMAL,
-		0,
 		FALSE,
-		NULL,
 		&hfile
 	);
 
 	if (!NT_SUCCESS (status))
-	{
-		_r_show_errormessage (hwnd, NULL, status, NULL, NULL, NULL);
-
-		return FALSE;
-	}
+		return status;
 
 	_r_fs_flushfile (hfile);
 
-	if (DeviceIoControl (hfile, FSCTL_DISMOUNT_VOLUME, NULL, 0, NULL, 0, &return_length, NULL))
-		is_success = TRUE;
+	status = NtFsControlFile (hfile, NULL, NULL, NULL, &isb, FSCTL_DISMOUNT_VOLUME, NULL, 0, NULL, 0);
 
 	NtClose (hfile);
 
-	return is_success;
+	return status;
 }
 
 VOID _app_refreshdriveinfo (
@@ -495,7 +471,7 @@ VOID _app_refreshdriveinfo (
 	PR_STRING file_system;
 	LARGE_INTEGER total_space;
 	LARGE_INTEGER free_space;
-	SIZE_T drive_number;
+	ULONG_PTR drive_number;
 	ULONG serial_number;
 
 	if (!_app_driveisready (drive->buffer))
@@ -516,9 +492,9 @@ VOID _app_refreshdriveinfo (
 
 	if (!_app_driveislocked (drive->buffer))
 	{
-		_r_fs_getdiskinformation (drive->buffer, &label, &file_system, NULL, &serial_number);
+		_r_fs_getdiskinformation (NULL, drive->buffer, &label, &file_system, NULL, &serial_number);
 
-		_r_fs_getdiskspace (drive->buffer, &free_space, &total_space);
+		_r_fs_getdiskspace (NULL, drive->buffer, &free_space, &total_space);
 	}
 	else
 	{
@@ -533,7 +509,7 @@ VOID _app_refreshdriveinfo (
 
 	_r_listview_setitem (hwnd, IDC_PROPERTIES, 2, 1, _app_driveislocked (drive->buffer) ? dl[drive_number].label->buffer : label->buffer);
 
-	switch (GetDriveType (drive->buffer))
+	switch (GetDriveTypeW (drive->buffer))
 	{
 		case DRIVE_REMOVABLE:
 		{
@@ -650,7 +626,7 @@ INT_PTR CALLBACK PropertiesDlgProc (
 			if (GetDlgCtrlID ((HWND)wparam) != IDC_PROPERTIES)
 				break;
 
-			hmenu = LoadMenu (NULL, MAKEINTRESOURCE (IDM_PROPERTIES));
+			hmenu = LoadMenuW (NULL, MAKEINTRESOURCEW (IDM_PROPERTIES));
 
 			if (!hmenu)
 				break;
@@ -799,9 +775,9 @@ LRESULT CALLBACK DlgProc
 			{
 				_r_sys_loadicon (_r_sys_getimagebase (), MAKEINTRESOURCE (i), width, &hicon);
 
-				ImageList_AddIcon (himglist, hicon);
+				ImageList_ReplaceIcon (himglist, -1, hicon);
 
-				SendDlgItemMessage (hwnd, IDC_STATUSBAR, SB_SETICON, j, (LPARAM)ImageList_GetIcon (himglist, j, ILD_NORMAL));
+				SendDlgItemMessageW (hwnd, IDC_STATUSBAR, SB_SETICON, j, (LPARAM)ImageList_GetIcon (himglist, j, ILD_NORMAL));
 
 				DestroyIcon (hicon);
 			}
@@ -814,7 +790,7 @@ LRESULT CALLBACK DlgProc
 				_r_menu_checkitem (hmenu, IDM_CHECKUPDATES_CHK, 0, MF_BYCOMMAND, _r_update_isenabled (FALSE));
 			}
 
-			SendDlgItemMessage (hwnd, IDC_DRIVES, LVM_SETIMAGELIST, LVSIL_SMALL, (LPARAM)himglist);
+			SendDlgItemMessageW (hwnd, IDC_DRIVES, LVM_SETIMAGELIST, LVSIL_SMALL, (LPARAM)himglist);
 
 			_app_refreshdrives (hwnd);
 
@@ -853,7 +829,7 @@ LRESULT CALLBACK DlgProc
 			if (GetDlgCtrlID ((HWND)wparam) != IDC_DRIVES)
 				break;
 
-			hmenu = LoadMenu (NULL, MAKEINTRESOURCE (IDM_DRIVES));
+			hmenu = LoadMenuW (NULL, MAKEINTRESOURCEW (IDM_DRIVES));
 
 			if (!hmenu)
 				break;
@@ -886,7 +862,7 @@ LRESULT CALLBACK DlgProc
 					lpnmia = (LPNMITEMACTIVATE)lparam;
 
 					if (lpnmia->iItem != -1)
-						PostMessage (hwnd, WM_COMMAND, MAKELPARAM (IDM_OPEN, 0), 0);
+						PostMessageW (hwnd, WM_COMMAND, MAKELPARAM (IDM_OPEN, 0), 0);
 
 					break;
 				}
@@ -904,7 +880,7 @@ LRESULT CALLBACK DlgProc
 				case IDCANCEL: // process Esc key
 				case IDM_EXIT:
 				{
-					PostMessage (hwnd, WM_CLOSE, 0, 0);
+					PostMessageW (hwnd, WM_CLOSE, 0, 0);
 					break;
 				}
 
@@ -986,6 +962,7 @@ LRESULT CALLBACK DlgProc
 				{
 					PR_STRING string;
 					INT item_id = -1;
+					NTSTATUS status;
 
 					if (!_r_listview_getselectedcount (hwnd, IDC_DRIVES))
 						break;
@@ -997,7 +974,10 @@ LRESULT CALLBACK DlgProc
 						if (!string)
 							continue;
 
-						_app_protectdrive (hwnd, string->buffer);
+						status = _app_protectdrive (hwnd, string->buffer);
+
+						if (!NT_SUCCESS (status))
+							_r_show_errormessage (hwnd, NULL, status, string->buffer, TRUE);
 
 						_r_obj_dereference (string);
 					}
@@ -1011,6 +991,7 @@ LRESULT CALLBACK DlgProc
 				{
 					PR_STRING string;
 					INT item_id = -1;
+					NTSTATUS status;
 
 					if (!_r_listview_getselectedcount (hwnd, IDC_DRIVES))
 						break;
@@ -1022,7 +1003,10 @@ LRESULT CALLBACK DlgProc
 						if (!string)
 							continue;
 
-						_app_unprotectdrive (hwnd, string->buffer);
+						status = _app_unprotectdrive (hwnd, string->buffer);
+
+						if (!NT_SUCCESS (status))
+							_r_show_errormessage (hwnd, NULL, status, string->buffer, TRUE);
 
 						_r_obj_dereference (string);
 					}
@@ -1036,6 +1020,7 @@ LRESULT CALLBACK DlgProc
 				{
 					PR_STRING string;
 					INT item_id = -1;
+					NTSTATUS status;
 
 					if (!_r_listview_getselectedcount (hwnd, IDC_DRIVES))
 						break;
@@ -1047,7 +1032,10 @@ LRESULT CALLBACK DlgProc
 						if (!string)
 							continue;
 
-						_app_lockdrive (hwnd, string->buffer);
+						status = _app_lockdrive (hwnd, string->buffer);
+
+						if (!NT_SUCCESS (status))
+							_r_show_errormessage (hwnd, NULL, status, string->buffer, TRUE);
 
 						_r_obj_dereference (string);
 					}
@@ -1061,6 +1049,7 @@ LRESULT CALLBACK DlgProc
 				{
 					PR_STRING string;
 					INT item_id = -1;
+					NTSTATUS status;
 
 					if (!_r_listview_getselectedcount (hwnd, IDC_DRIVES))
 						break;
@@ -1072,7 +1061,10 @@ LRESULT CALLBACK DlgProc
 						if (!string)
 							continue;
 
-						_app_unlockdrive (string->buffer);
+						status = _app_unlockdrive (string->buffer);
+
+						if (!NT_SUCCESS (status))
+							_r_show_errormessage (hwnd, NULL, status, string->buffer, TRUE);
 
 						_r_obj_dereference (string);
 					}
@@ -1094,6 +1086,7 @@ LRESULT CALLBACK DlgProc
 				{
 					PR_STRING string;
 					INT item_id = -1;
+					NTSTATUS status;
 
 					if (!_r_listview_getselectedcount (hwnd, IDC_DRIVES))
 						break;
@@ -1105,7 +1098,10 @@ LRESULT CALLBACK DlgProc
 						if (!string)
 							continue;
 
-						_app_ejectdrive (hwnd, string->buffer);
+						status = _app_ejectdrive (hwnd, string->buffer);
+
+						if (!NT_SUCCESS (status))
+							_r_show_errormessage (hwnd, NULL, status, string->buffer, TRUE);
 
 						_r_obj_dereference (string);
 					}
@@ -1118,7 +1114,7 @@ LRESULT CALLBACK DlgProc
 				case IDM_FORMAT:
 				{
 					PR_STRING string;
-					SIZE_T drive_number;
+					ULONG_PTR drive_number;
 					INT item_id;
 
 					if (!_r_listview_getselectedcount (hwnd, IDC_DRIVES))
@@ -1164,7 +1160,7 @@ LRESULT CALLBACK DlgProc
 						break;
 
 					if (!_app_driveislocked (string->buffer))
-						DialogBoxParam (NULL, MAKEINTRESOURCE (IDD_PROPERTIES), hwnd, &PropertiesDlgProc, (LPARAM)string);
+						DialogBoxParamW (NULL, MAKEINTRESOURCE (IDD_PROPERTIES), hwnd, &PropertiesDlgProc, (LPARAM)string);
 
 					_r_obj_dereference (string);
 				}
@@ -1195,10 +1191,10 @@ INT APIENTRY wWinMain (
 	if (!_r_app_initialize (NULL))
 		return ERROR_APP_INIT_FAILURE;
 
-	hwnd = _r_app_createwindow (hinst, MAKEINTRESOURCE (IDD_MAIN), MAKEINTRESOURCE (IDI_MAIN), &DlgProc);
+	hwnd = _r_app_createwindow (hinst, MAKEINTRESOURCEW (IDD_MAIN), MAKEINTRESOURCEW (IDI_MAIN), &DlgProc);
 
 	if (!hwnd)
 		return ERROR_APP_INIT_FAILURE;
 
-	return _r_wnd_message_callback (hwnd, MAKEINTRESOURCE (IDA_MAIN));
+	return _r_wnd_message_callback (hwnd, MAKEINTRESOURCEW (IDA_MAIN));
 }

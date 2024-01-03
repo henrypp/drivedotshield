@@ -1,10 +1,11 @@
 // Drive Dot Shield
 // Copyright (c) 2012-2023 Henry++
 
-#ifndef __DRIVEDOTSHIELD_H__
-#define __DRIVEDOTSHIELD_H__
+#pragma once
 
 #include "routine.h"
+
+#include <winioctl.h>
 
 #include "resource.h"
 #include "app.h"
@@ -29,5 +30,3 @@ typedef enum _DRIVE_STATUS
 	DS_INFECTED, // maybe
 	DS_LOCKED
 } DRIVE_STATUS;
-
-#endif // __DRIVEDOTSHIELD_H__
