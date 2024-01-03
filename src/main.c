@@ -45,7 +45,7 @@ BOOLEAN _app_driveisready (
 	if (_app_driveislocked (drive))
 		return TRUE;
 
-	_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"%c:\\", drive[0]);
+	_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"%C:\\", drive[0]);
 
 	NtQueryInformationProcess (NtCurrentProcess (), ProcessDefaultHardErrorMode, &old_error_mode, sizeof (old_error_mode), NULL);
 
@@ -75,7 +75,7 @@ DRIVE_STATUS _app_getdrivestatus (
 		return DS_LOCKED;
 	}
 
-	_r_str_printf (path, RTL_NUMBER_OF (path), L"%c:\\autorun.inf", drive[0]);
+	_r_str_printf (path, RTL_NUMBER_OF (path), L"%C:\\autorun.inf", drive[0]);
 
 	if (_r_fs_exists (path))
 	{
@@ -167,7 +167,7 @@ VOID _app_refreshdrives (
 		if (!((drives >> i) & 0x00000001))
 			continue;
 
-		_r_str_printf (drive, RTL_NUMBER_OF (drive), L"%c:", (65 + i));
+		_r_str_printf (drive, RTL_NUMBER_OF (drive), L"%C:", (65 + i));
 
 		if (!_app_driveisready (drive))
 			continue;
@@ -276,7 +276,7 @@ NTSTATUS _app_protectdrive (
 	WCHAR random[9];
 	NTSTATUS status;
 
-	_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"\\\\?\\%c:\\autorun.inf", drive[0]);
+	_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"\\\\.\\%C:\\autorun.inf", drive[0]);
 
 	status = _r_fs_createdirectory (buffer, FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_READONLY | FILE_ATTRIBUTE_SYSTEM);
 
@@ -285,7 +285,7 @@ NTSTATUS _app_protectdrive (
 
 	_r_str_generaterandom (random, RTL_NUMBER_OF (random), TRUE);
 
-	_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"\\\\?\\%c:\\autorun.inf\\%s.", drive[0], random);
+	_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"\\\\.\\%C:\\autorun.inf\\%s.", drive[0], random);
 
 	status = _r_fs_createfile (
 		buffer,
@@ -314,7 +314,7 @@ NTSTATUS _app_unprotectdrive (
 	ULONG attributes;
 	NTSTATUS status;
 
-	_r_str_printf (autorun_file, RTL_NUMBER_OF (autorun_file), L"%c:\\autorun.inf", drive[0]);
+	_r_str_printf (autorun_file, RTL_NUMBER_OF (autorun_file), L"%C:\\autorun.inf", drive[0]);
 
 	_r_fs_setattributes (autorun_file, NULL, FILE_ATTRIBUTE_NORMAL);
 
@@ -339,40 +339,33 @@ NTSTATUS _app_unprotectdrive (
 }
 
 NTSTATUS _app_lockdrive (
-	_In_ HWND hwnd,
 	_In_ LPCWSTR drive
 )
 {
 	IO_STATUS_BLOCK isb;
-	HANDLE hfile;
 	WCHAR buffer[64];
-	ULONG_PTR drive_number;
+	HANDLE hfile;
+	ULONG_PTR i;
 	NTSTATUS status;
 
-	_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"\\\\?\\%c:", drive[0]);
+	_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"\\\\.\\%C:", drive[0]);
 
-	status = _r_fs_openfile (
-		buffer,
-		FILE_GENERIC_READ | GENERIC_WRITE,
-		FILE_SHARE_READ | FILE_SHARE_WRITE,
-		FALSE,
-		&hfile
-	);
+	status = _r_fs_openfile (buffer, FILE_GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, FALSE, &hfile);
 
 	if (!NT_SUCCESS (status))
 		return status;
 
-	drive_number = _app_getdrivenumber (drive);
+	i = _app_getdrivenumber (drive);
 
-	_r_fs_getdiskinformation (hfile, NULL, &dl[drive_number].label, &dl[drive_number].file_system, NULL, &dl[drive_number].serial_number);
+	_r_fs_getdiskinformation (hfile, NULL, &dl[i].label, &dl[i].file_system, NULL, &dl[i].serial_number);
 
-	_r_fs_getdiskspace (hfile, NULL, &dl[drive_number].free_space, &dl[drive_number].total_space);
+	_r_fs_getdiskspace (hfile, NULL, &dl[i].free_space, &dl[i].total_space);
 
 	status = NtFsControlFile (hfile, NULL, NULL, NULL, &isb, FSCTL_LOCK_VOLUME, NULL, 0, NULL, 0);
 
 	if (NT_SUCCESS (status))
 	{
-		dl[drive_number].hdrive = hfile;
+		dl[i].hdrive = hfile;
 	}
 	else
 	{
@@ -417,7 +410,7 @@ VOID _app_unlockalldrives (
 
 		for (i = 0; i < PR_DEVICE_COUNT; i++)
 		{
-			_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"%c:\\", i + 65);
+			_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"%C:\\", i + 65);
 
 			_app_unlockdrive (buffer);
 		}
@@ -429,7 +422,6 @@ VOID _app_unlockalldrives (
 }
 
 NTSTATUS _app_ejectdrive (
-	_In_ HWND hwnd,
 	_In_ LPCWSTR drive
 )
 {
@@ -438,22 +430,16 @@ NTSTATUS _app_ejectdrive (
 	HANDLE hfile;
 	NTSTATUS status;
 
-	_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"\\\\?\\%c:", drive[0]);
+	_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"\\\\.\\%C:", drive[0]);
 
-	status = _r_fs_openfile (
-		buffer,
-		FILE_GENERIC_READ | GENERIC_WRITE,
-		FILE_SHARE_READ | FILE_SHARE_WRITE,
-		FALSE,
-		&hfile
-	);
+	status = _r_fs_openfile (buffer, FILE_GENERIC_READ | FILE_GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, FILE_WRITE_THROUGH, FALSE, &hfile);
 
 	if (!NT_SUCCESS (status))
 		return status;
 
 	_r_fs_flushfile (hfile);
 
-	status = NtFsControlFile (hfile, NULL, NULL, NULL, &isb, FSCTL_DISMOUNT_VOLUME, NULL, 0, NULL, 0);
+	status = NtDeviceIoControlFile (hfile, NULL, NULL, NULL, &isb, IOCTL_DISK_EJECT_MEDIA, NULL, 0, NULL, 0);
 
 	NtClose (hfile);
 
@@ -542,7 +528,7 @@ VOID _app_refreshdriveinfo (
 		}
 	}
 
-	_r_listview_setitem (hwnd, IDC_PROPERTIES, 4, 1, _app_driveislocked (drive->buffer) ? dl[drive_number].file_system->buffer : file_system->buffer);
+	_r_listview_setitem (hwnd, IDC_PROPERTIES, 4, 1, _app_driveislocked (drive->buffer) ? dl[drive_number].file_system->buffer : _r_obj_getstringordefault (file_system, L"<unknown>"));
 	_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"%04X-%04X", HIWORD (serial_number), LOWORD (serial_number));
 
 	_r_listview_setitem (hwnd, IDC_PROPERTIES, 5, 1, buffer);
@@ -1032,7 +1018,7 @@ LRESULT CALLBACK DlgProc
 						if (!string)
 							continue;
 
-						status = _app_lockdrive (hwnd, string->buffer);
+						status = _app_lockdrive (string->buffer);
 
 						if (!NT_SUCCESS (status))
 							_r_show_errormessage (hwnd, NULL, status, string->buffer, TRUE);
@@ -1098,7 +1084,7 @@ LRESULT CALLBACK DlgProc
 						if (!string)
 							continue;
 
-						status = _app_ejectdrive (hwnd, string->buffer);
+						status = _app_ejectdrive (string->buffer);
 
 						if (!NT_SUCCESS (status))
 							_r_show_errormessage (hwnd, NULL, status, string->buffer, TRUE);
