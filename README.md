@@ -41,4 +41,4 @@ Binaries have GPG signature `drivedotshield.exe.sig` in application folder.
 - Website: [github.com/henrypp](https://github.com/henrypp)
 - Support: sforce5@mail.ru
 <br />
-(c) 2012-2023 Henry++
+(c) 2012-2024 Henry++

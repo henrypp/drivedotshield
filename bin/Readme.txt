@@ -8,4 +8,4 @@ To activate portable mode, create "drivedotshield.ini" in application folder, or
 Website: www.henrypp.org
 Support: support@henrypp.org
 
-(c) 2012-2023 Henry++
+(c) 2012-2024 Henry++
