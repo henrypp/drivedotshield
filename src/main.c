@@ -342,34 +342,33 @@ NTSTATUS _app_lockdrive (
 	_In_ LPCWSTR drive
 )
 {
-	IO_STATUS_BLOCK isb;
 	WCHAR buffer[64];
-	HANDLE hfile;
+	HANDLE hdevice;
 	ULONG_PTR i;
 	NTSTATUS status;
 
 	_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"\\\\.\\%C:", drive[0]);
 
-	status = _r_fs_openfile (buffer, FILE_GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, FALSE, &hfile);
+	status = _r_fs_openfile (buffer, FILE_GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, FALSE, &hdevice);
 
 	if (!NT_SUCCESS (status))
 		return status;
 
 	i = _app_getdrivenumber (drive);
 
-	_r_fs_getdiskinformation (hfile, NULL, &dl[i].label, &dl[i].file_system, NULL, &dl[i].serial_number);
+	_r_fs_getdiskinformation (hdevice, NULL, &dl[i].label, &dl[i].file_system, NULL, &dl[i].serial_number);
 
-	_r_fs_getdiskspace (hfile, NULL, &dl[i].free_space, &dl[i].total_space);
+	_r_fs_getdiskspace (hdevice, NULL, &dl[i].free_space, &dl[i].total_space);
 
-	status = NtFsControlFile (hfile, NULL, NULL, NULL, &isb, FSCTL_LOCK_VOLUME, NULL, 0, NULL, 0);
+	status = _r_fs_deviceiocontrol (hdevice,  FSCTL_LOCK_VOLUME, NULL, 0, NULL, 0, NULL);
 
 	if (NT_SUCCESS (status))
 	{
-		dl[i].hdrive = hfile;
+		dl[i].hdrive = hdevice;
 	}
 	else
 	{
-		NtClose (hfile);
+		NtClose (hdevice);
 	}
 
 	return status;
@@ -379,7 +378,6 @@ NTSTATUS _app_unlockdrive (
 	_In_ LPCWSTR drive
 )
 {
-	IO_STATUS_BLOCK isb;
 	ULONG_PTR drive_number;
 	NTSTATUS status;
 
@@ -388,7 +386,7 @@ NTSTATUS _app_unlockdrive (
 	if (!dl[drive_number].hdrive)
 		return STATUS_INVALID_HANDLE;
 
-	status = NtFsControlFile (dl[drive_number].hdrive, NULL, NULL, NULL, &isb, FSCTL_UNLOCK_VOLUME, NULL, 0, NULL, 0);
+	status = _r_fs_deviceiocontrol (dl[drive_number].hdrive,  FSCTL_UNLOCK_VOLUME, NULL, 0, NULL, 0, NULL);
 
 	NtClose (dl[drive_number].hdrive);
 
@@ -425,23 +423,22 @@ NTSTATUS _app_ejectdrive (
 	_In_ LPCWSTR drive
 )
 {
-	IO_STATUS_BLOCK isb;
 	WCHAR buffer[64];
-	HANDLE hfile;
+	HANDLE hdevice;
 	NTSTATUS status;
 
 	_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"\\\\.\\%C:", drive[0]);
 
-	status = _r_fs_openfile (buffer, FILE_GENERIC_READ | FILE_GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, FILE_WRITE_THROUGH, FALSE, &hfile);
+	status = _r_fs_openfile (buffer, FILE_GENERIC_READ | FILE_GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, FILE_WRITE_THROUGH, FALSE, &hdevice);
 
 	if (!NT_SUCCESS (status))
 		return status;
 
-	_r_fs_flushfile (hfile);
+	_r_fs_flushfile (hdevice);
 
-	status = NtDeviceIoControlFile (hfile, NULL, NULL, NULL, &isb, IOCTL_DISK_EJECT_MEDIA, NULL, 0, NULL, 0);
+	status = _r_fs_deviceiocontrol (hdevice,  IOCTL_DISK_EJECT_MEDIA, NULL, 0, NULL, 0, NULL);
 
-	NtClose (hfile);
+	NtClose (hdevice);
 
 	return status;
 }

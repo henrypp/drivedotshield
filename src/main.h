@@ -5,8 +5,6 @@
 
 #include "routine.h"
 
-#include <winioctl.h>
-
 #include "resource.h"
 #include "app.h"
 
