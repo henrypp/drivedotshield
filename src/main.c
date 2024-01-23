@@ -360,7 +360,7 @@ NTSTATUS _app_lockdrive (
 
 	_r_fs_getdiskspace (hdevice, NULL, &dl[i].free_space, &dl[i].total_space);
 
-	status = _r_fs_deviceiocontrol (hdevice,  FSCTL_LOCK_VOLUME, NULL, 0, NULL, 0, NULL);
+	status = _r_fs_deviceiocontrol (hdevice, FSCTL_LOCK_VOLUME, NULL, 0, NULL, 0, NULL);
 
 	if (NT_SUCCESS (status))
 	{
@@ -386,7 +386,7 @@ NTSTATUS _app_unlockdrive (
 	if (!dl[drive_number].hdrive)
 		return STATUS_INVALID_HANDLE;
 
-	status = _r_fs_deviceiocontrol (dl[drive_number].hdrive,  FSCTL_UNLOCK_VOLUME, NULL, 0, NULL, 0, NULL);
+	status = _r_fs_deviceiocontrol (dl[drive_number].hdrive, FSCTL_UNLOCK_VOLUME, NULL, 0, NULL, 0, NULL);
 
 	NtClose (dl[drive_number].hdrive);
 
@@ -406,12 +406,9 @@ VOID _app_unlockalldrives (
 		if (!dl[i].hdrive)
 			continue;
 
-		for (i = 0; i < PR_DEVICE_COUNT; i++)
-		{
-			_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"%C:\\", i + 65);
+		_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"%C:\\", i + 65);
 
-			_app_unlockdrive (buffer);
-		}
+		_app_unlockdrive (buffer);
 
 		break;
 	}
@@ -436,7 +433,7 @@ NTSTATUS _app_ejectdrive (
 
 	_r_fs_flushfile (hdevice);
 
-	status = _r_fs_deviceiocontrol (hdevice,  IOCTL_DISK_EJECT_MEDIA, NULL, 0, NULL, 0, NULL);
+	status = _r_fs_deviceiocontrol (hdevice, IOCTL_DISK_EJECT_MEDIA, NULL, 0, NULL, 0, NULL);
 
 	NtClose (hdevice);
 
@@ -756,11 +753,11 @@ LRESULT CALLBACK DlgProc
 
 			for (INT i = IDI_NORMAL, j = 0; i < (IDI_LOCKED + 1); i++, j++)
 			{
-				_r_sys_loadicon (_r_sys_getimagebase (), MAKEINTRESOURCE (i), width, &hicon);
+				_r_sys_loadicon (_r_sys_getimagebase (), MAKEINTRESOURCEW (i), width, &hicon);
 
 				ImageList_ReplaceIcon (himglist, -1, hicon);
 
-				SendDlgItemMessageW (hwnd, IDC_STATUSBAR, SB_SETICON, j, (LPARAM)ImageList_GetIcon (himglist, j, ILD_NORMAL));
+				_r_wnd_sendmessage (hwnd, IDC_STATUSBAR, SB_SETICON, j, (LPARAM)ImageList_GetIcon (himglist, j, ILD_NORMAL));
 
 				DestroyIcon (hicon);
 			}
@@ -773,7 +770,7 @@ LRESULT CALLBACK DlgProc
 				_r_menu_checkitem (hmenu, IDM_CHECKUPDATES_CHK, 0, MF_BYCOMMAND, _r_update_isenabled (FALSE));
 			}
 
-			SendDlgItemMessageW (hwnd, IDC_DRIVES, LVM_SETIMAGELIST, LVSIL_SMALL, (LPARAM)himglist);
+			_r_wnd_sendmessage (hwnd, IDC_DRIVES, LVM_SETIMAGELIST, LVSIL_SMALL, (LPARAM)himglist);
 
 			_app_refreshdrives (hwnd);
 
@@ -845,7 +842,7 @@ LRESULT CALLBACK DlgProc
 					lpnmia = (LPNMITEMACTIVATE)lparam;
 
 					if (lpnmia->iItem != -1)
-						PostMessageW (hwnd, WM_COMMAND, MAKELPARAM (IDM_OPEN, 0), 0);
+						_r_wnd_sendmessage (hwnd, 0, WM_COMMAND, MAKELPARAM (IDM_OPEN, 0), 0);
 
 					break;
 				}
@@ -863,7 +860,7 @@ LRESULT CALLBACK DlgProc
 				case IDCANCEL: // process Esc key
 				case IDM_EXIT:
 				{
-					PostMessageW (hwnd, WM_CLOSE, 0, 0);
+					DestroyWindow (hwnd);
 					break;
 				}
 
@@ -1143,7 +1140,7 @@ LRESULT CALLBACK DlgProc
 						break;
 
 					if (!_app_driveislocked (string->buffer))
-						DialogBoxParamW (NULL, MAKEINTRESOURCE (IDD_PROPERTIES), hwnd, &PropertiesDlgProc, (LPARAM)string);
+						DialogBoxParamW (NULL, MAKEINTRESOURCEW (IDD_PROPERTIES), hwnd, &PropertiesDlgProc, (LPARAM)string);
 
 					_r_obj_dereference (string);
 				}
