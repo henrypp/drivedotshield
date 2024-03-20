@@ -585,15 +585,17 @@ INT_PTR CALLBACK PropertiesDlgProc (
 
 			_app_refreshdriveinfo (hwnd, drive);
 
+			_r_theme_initialize (hwnd, _r_theme_isenabled ());
+
 			break;
 		}
 
 		case WM_CLOSE:
 		{
 			if (drive)
-				_r_obj_dereference (drive);
+				_r_obj_clearreference (&drive);
 
-			EndDialog (hwnd, FALSE);
+			EndDialog (hwnd, 0);
 
 			break;
 		}
@@ -635,19 +637,13 @@ INT_PTR CALLBACK PropertiesDlgProc (
 			PAINTSTRUCT ps = {0};
 			HDC hdc;
 
-			hdc = BeginPaint (hwnd, &ps);;
+			hdc = BeginPaint (hwnd, &ps);
 
-			_r_dc_drawwindow (hdc, hwnd, 0, TRUE);
+			_r_dc_drawwindow (hdc, hwnd, TRUE);
 
 			EndPaint (hwnd, &ps);
 
 			return 0;
-		}
-
-		case WM_CTLCOLORSTATIC:
-		case WM_CTLCOLORDLG:
-		{
-			return (INT_PTR)GetSysColorBrush (COLOR_WINDOW);
 		}
 
 		case WM_COMMAND:
@@ -659,7 +655,7 @@ INT_PTR CALLBACK PropertiesDlgProc (
 				case IDCANCEL: // process Esc key
 				case IDC_OK:
 				{
-					EndDialog (hwnd, FALSE);
+					EndDialog (hwnd, 0);
 					break;
 				}
 
@@ -741,11 +737,11 @@ LRESULT CALLBACK DlgProc
 
 			dpi_value = _r_dc_getwindowdpi (hwnd);
 
-			_r_listview_addcolumn (hwnd, IDC_DRIVES, 0, L"Drive", _r_dc_getdpi (50, dpi_value), 0);
-			_r_listview_addcolumn (hwnd, IDC_DRIVES, 1, L"Label", _r_dc_getdpi (90, dpi_value), 0);
-			_r_listview_addcolumn (hwnd, IDC_DRIVES, 2, L"Type", _r_dc_getdpi (90, dpi_value), 0);
-			_r_listview_addcolumn (hwnd, IDC_DRIVES, 3, L"Filesystem", _r_dc_getdpi (90, dpi_value), 0);
-			_r_listview_addcolumn (hwnd, IDC_DRIVES, 4, L"Status", _r_dc_getdpi (85, dpi_value), 0);
+			_r_listview_addcolumn (hwnd, IDC_DRIVES, 0, L"Drive", -10, 0);
+			_r_listview_addcolumn (hwnd, IDC_DRIVES, 1, L"Label", -40, 0);
+			_r_listview_addcolumn (hwnd, IDC_DRIVES, 2, L"Type", -40, 0);
+			_r_listview_addcolumn (hwnd, IDC_DRIVES, 3, L"Filesystem", -40, 0);
+			_r_listview_addcolumn (hwnd, IDC_DRIVES, 4, L"Status", -40, 0);
 
 			width = _r_dc_getsystemmetrics (SM_CXSMICON, dpi_value);
 
@@ -767,6 +763,7 @@ LRESULT CALLBACK DlgProc
 			if (hmenu)
 			{
 				_r_menu_checkitem (hmenu, IDM_ALWAYSONTOP_CHK, 0, MF_BYCOMMAND, _r_config_getboolean (L"AlwaysOnTop", FALSE));
+				_r_menu_checkitem (hmenu, IDM_USEDARKTHEME_CHK, 0, MF_BYCOMMAND, _r_theme_isenabled ());
 				_r_menu_checkitem (hmenu, IDM_CHECKUPDATES_CHK, 0, MF_BYCOMMAND, _r_update_isenabled (FALSE));
 			}
 
@@ -781,7 +778,24 @@ LRESULT CALLBACK DlgProc
 
 		case WM_SIZE:
 		{
+			LONG dpi_value;
+
 			_r_layout_resize (&layout_manager, wparam);
+
+			dpi_value = _r_dc_getwindowdpi (hwnd);
+
+			_r_listview_setcolumn (hwnd, IDC_DRIVES, 0, NULL, -10);
+			_r_listview_setcolumn (hwnd, IDC_DRIVES, 1, NULL, -30);
+			_r_listview_setcolumn (hwnd, IDC_DRIVES, 2, NULL, -20);
+			_r_listview_setcolumn (hwnd, IDC_DRIVES, 3, NULL, -20);
+			_r_listview_setcolumn (hwnd, IDC_DRIVES, 4, NULL, -20);
+
+			break;
+		}
+
+		case WM_GETMINMAXINFO:
+		{
+			_r_layout_resizeminimumsize (&layout_manager, lparam);
 			break;
 		}
 
@@ -874,6 +888,19 @@ LRESULT CALLBACK DlgProc
 					_r_config_setboolean (L"AlwaysOnTop", new_val);
 
 					_r_wnd_top (hwnd, new_val);
+
+					break;
+				}
+
+				case IDM_USEDARKTHEME_CHK:
+				{
+					BOOLEAN new_val;
+
+					new_val = !_r_theme_isenabled ();
+
+					_r_menu_checkitem (GetMenu (hwnd), ctrl_id, 0, MF_BYCOMMAND, new_val);
+					_r_theme_enable (hwnd, new_val);
+
 
 					break;
 				}
@@ -1143,6 +1170,8 @@ LRESULT CALLBACK DlgProc
 						DialogBoxParamW (NULL, MAKEINTRESOURCEW (IDD_PROPERTIES), hwnd, &PropertiesDlgProc, (LPARAM)string);
 
 					_r_obj_dereference (string);
+
+					break;
 				}
 
 				case IDM_ZOOM:
