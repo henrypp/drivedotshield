@@ -31,6 +31,7 @@ IDM_MAIN MENU
 	POPUP "Settings"
 	{
 		MENUITEM "Always on top", IDM_ALWAYSONTOP_CHK
+		MENUITEM "Use dark theme", IDM_USEDARKTHEME_CHK
 		MENUITEM "Periodically check for updates (recommended)", IDM_CHECKUPDATES_CHK
 	}
 	POPUP "Help"
