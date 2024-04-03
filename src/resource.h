@@ -34,12 +34,14 @@
 #define IDM_EXIT 110
 #define IDM_SETTINGS 111
 #define IDM_ALWAYSONTOP_CHK 112
-#define IDM_USEDARKTHEME_CHK 113
+#define IDM_DARKMODE_CHK 113
 #define IDM_CHECKUPDATES_CHK 114
 #define IDM_WEBSITE 115
-#define IDM_CHECK_UPDATES 116
+#define IDM_CHECKUPDATES 116
 #define IDM_ABOUT 117
 #define IDM_ZOOM 118
+
+#define IDX_LANGUAGE 1000
 
 // Drives Menu
 #define IDM_OPEN 119
@@ -53,6 +55,43 @@
 #define IDM_FORMAT 127
 #define IDM_PROPERTY 128
 #define IDM_COPY 129
+
+// Strings
+#define IDS_FILE 1
+#define IDS_EXIT 2
+#define IDS_SETTINGS 3
+#define IDS_ALWAYSONTOP_CHK 4
+#define IDS_DARKMODE_CHK 5
+#define IDS_CHECKUPDATES_CHK 6
+#define IDS_LANGUAGE 7
+#define IDS_HELP 8
+#define IDS_WEBSITE 9
+#define IDS_CHECKUPDATES 10
+#define IDS_ABOUT 11
+#define IDS_OPEN 12
+#define IDS_PROTECT 13
+#define IDS_UNPROTECT 14
+#define IDS_SERVICE 15
+#define IDS_LOCK 16
+#define IDS_UNLOCK 17
+#define IDS_UNLOCK_ALL 18
+#define IDS_EJECT 19
+#define IDS_FORMAT 20
+#define IDS_PROPERTIES 21
+#define IDS_GROUP1 22
+#define IDS_GROUP2 23
+#define IDS_DRIVE 24
+#define IDS_LABEL 25
+#define IDS_TYPE 26
+#define IDS_FILESYSTEM 27
+#define IDS_STATUS 28
+#define IDS_SERIAL 29
+#define IDS_FREESPACE 30
+#define IDS_USEDSPACE 31
+#define IDS_TOTALSPACE 32
+#define IDS_COPY 33
+#define IDS_REFRESH 34
+#define IDS_CLOSE 35
 
 // Icons
 #define IDI_MAIN 100

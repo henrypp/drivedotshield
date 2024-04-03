@@ -24,21 +24,26 @@ END
 //
 IDM_MAIN MENU
 {
-	POPUP "File"
+	POPUP " "
 	{
-		MENUITEM "Exit\tEsc", IDM_EXIT
+		MENUITEM " ", IDM_EXIT
 	}
-	POPUP "Settings"
+	POPUP " "
 	{
-		MENUITEM "Always on top", IDM_ALWAYSONTOP_CHK
-		MENUITEM "Use dark theme", IDM_USEDARKTHEME_CHK
-		MENUITEM "Periodically check for updates (recommended)", IDM_CHECKUPDATES_CHK
+		MENUITEM " ", IDM_ALWAYSONTOP_CHK
+		MENUITEM " ", IDM_DARKMODE_CHK
+		MENUITEM " ", IDM_CHECKUPDATES_CHK
+		MENUITEM SEPARATOR
+		POPUP " "
+		{
+			MENUITEM " ", IDX_LANGUAGE
+		}
 	}
-	POPUP "Help"
+	POPUP " "
 	{
-		MENUITEM "Website", IDM_WEBSITE
-		MENUITEM "Check for update", IDM_CHECK_UPDATES
-		MENUITEM "About\tF1", IDM_ABOUT
+		MENUITEM " ", IDM_WEBSITE
+		MENUITEM " ", IDM_CHECKUPDATES
+		MENUITEM " ", IDM_ABOUT
 	}
 }
 
@@ -46,24 +51,24 @@ IDM_DRIVES MENU
 {
 	POPUP ""
 	{
-		MENUITEM "Open", IDM_OPEN
+		MENUITEM " ", IDM_OPEN
 		MENUITEM SEPARATOR
-		MENUITEM "Protect", IDM_PROTECT
-		MENUITEM "Unprotect", IDM_UNPROTECT
+		MENUITEM " ", IDM_PROTECT
+		MENUITEM " ", IDM_UNPROTECT
 		MENUITEM SEPARATOR
-		MENUITEM "Refresh\tF5", IDM_REFRESH
+		MENUITEM " ", IDM_REFRESH
 		MENUITEM SEPARATOR
-		POPUP "Service"
+		POPUP " "
 		{
-			MENUITEM "Lock access", IDM_LOCK
-			MENUITEM "Unlock access", IDM_UNLOCK
-			MENUITEM "Unlock all drives", IDM_UNLOCK_ALL
+			MENUITEM " ", IDM_LOCK
+			MENUITEM " ", IDM_UNLOCK
+			MENUITEM " ", IDM_UNLOCK_ALL
 			MENUITEM SEPARATOR
-			MENUITEM "Eject", IDM_EJECT
-			MENUITEM "Format...", IDM_FORMAT
+			MENUITEM " ", IDM_EJECT
+			MENUITEM " ", IDM_FORMAT
 		}
 		MENUITEM SEPARATOR
-		MENUITEM "Properties", IDM_PROPERTY
+		MENUITEM " ", IDM_PROPERTY
 	}
 }
 
@@ -71,8 +76,8 @@ IDM_PROPERTIES MENU
 {
 	POPUP ""
 	{
-		MENUITEM "Copy\tCtrl+C", IDM_COPY
-		MENUITEM "Refresh", IDM_REFRESH
+		MENUITEM " ", IDM_COPY
+		MENUITEM " ", IDM_REFRESH
 	}
 }
 
@@ -91,11 +96,60 @@ FONT 8, "Ms Shell Dlg"
 
 IDD_PROPERTIES DIALOGEX 0, 0, 210, 180
 STYLE WS_POPUP | WS_SYSMENU | WS_CAPTION | DS_MODALFRAME | DS_SHELLFONT
-CAPTION "Properties"
+CAPTION ""
 FONT 8, "Ms Shell Dlg"
 {
 	CONTROL				"", IDC_PROPERTIES, WC_LISTVIEW, NOT WS_BORDER | WS_TABSTOP | LVS_SHOWSELALWAYS | LVS_REPORT | LVS_NOCOLUMNHEADER | LVS_NOSCROLL, 8, 8, 194, 140
 	DEFPUSHBUTTON		"OK", IDC_OK, 153, 160, 50, 14
+}
+
+//
+// String resources
+//
+STRINGTABLE
+{
+	IDS_FILE "File"
+	IDS_EXIT "Exit"
+	IDS_SETTINGS "Settings"
+	IDS_ALWAYSONTOP_CHK "Always on top"
+	IDS_DARKMODE_CHK "Use dark theme"
+	IDS_CHECKUPDATES_CHK "Periodically check for updates (recommended)"
+	IDS_LANGUAGE "Language"
+	IDS_HELP "Help"
+	IDS_WEBSITE "Website"
+	IDS_CHECKUPDATES "Check for updates"
+	IDS_ABOUT "About"
+
+	IDS_OPEN "Open"
+	IDS_PROTECT "Protect"
+	IDS_UNPROTECT "Unprotect"
+	IDS_SERVICE "Service"
+	IDS_LOCK "Lock access"
+	IDS_UNLOCK "Unlock access"
+	IDS_UNLOCK_ALL "Unlock all drives"
+	IDS_EJECT "Eject"
+	IDS_FORMAT "Format"
+
+	IDS_PROPERTIES "Properties"
+
+	IDS_GROUP1 "General"
+	IDS_GROUP2 "Space"
+
+	IDS_DRIVE "Drive"
+	IDS_LABEL "Label"
+	IDS_TYPE "Type"
+	IDS_FILESYSTEM "Filesystem"
+	IDS_STATUS "Status"
+	IDS_SERIAL "Serial number"
+
+	IDS_FREESPACE "Free space"
+	IDS_USEDSPACE "Used space"
+	IDS_TOTALSPACE "Total space"
+
+	IDS_COPY "Copy"
+	IDS_REFRESH "Refresh"
+
+	IDS_CLOSE "Close"
 }
 
 //
