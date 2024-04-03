@@ -18,41 +18,41 @@
 #define IDD_PROPERTIES 101
 
 // Main Dlg
-#define IDC_DRIVES 100
-#define IDC_STATUSBAR 101
+#define IDC_DRIVES 103
+#define IDC_STATUSBAR 104
 
 // Settings Dlg
-#define IDC_NAV 100
-#define IDC_RESET 101
-#define IDC_CLOSE 102
+#define IDC_NAV 105
+#define IDC_RESET 106
+#define IDC_CLOSE 107
 
 // Properties Dlg
-#define IDC_PROPERTIES 100
-#define IDC_OK 101
+#define IDC_PROPERTIES 108
+#define IDC_OK 109
 
 // Main Menu
-#define IDM_EXIT 40000
-#define IDM_SETTINGS 40001
-#define IDM_ALWAYSONTOP_CHK 40002
-#define IDM_USEDARKTHEME_CHK 40003
-#define IDM_CHECKUPDATES_CHK 40004
-#define IDM_WEBSITE 40005
-#define IDM_CHECK_UPDATES 40006
-#define IDM_ABOUT 40007
-#define IDM_ZOOM 40008
+#define IDM_EXIT 110
+#define IDM_SETTINGS 111
+#define IDM_ALWAYSONTOP_CHK 112
+#define IDM_USEDARKTHEME_CHK 113
+#define IDM_CHECKUPDATES_CHK 114
+#define IDM_WEBSITE 115
+#define IDM_CHECK_UPDATES 116
+#define IDM_ABOUT 117
+#define IDM_ZOOM 118
 
 // Drives Menu
-#define IDM_OPEN 1000
-#define IDM_PROTECT 1001
-#define IDM_UNPROTECT 1002
-#define IDM_REFRESH 1003
-#define IDM_LOCK 1004
-#define IDM_UNLOCK 1005
-#define IDM_UNLOCK_ALL 1006
-#define IDM_EJECT 1007
-#define IDM_FORMAT 1008
-#define IDM_PROPERTY 1009
-#define IDM_COPY 1010
+#define IDM_OPEN 119
+#define IDM_PROTECT 120
+#define IDM_UNPROTECT 121
+#define IDM_REFRESH 122
+#define IDM_LOCK 123
+#define IDM_UNLOCK 124
+#define IDM_UNLOCK_ALL 125
+#define IDM_EJECT 126
+#define IDM_FORMAT 127
+#define IDM_PROPERTY 128
+#define IDM_COPY 129
 
 // Icons
 #define IDI_MAIN 100
