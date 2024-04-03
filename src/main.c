@@ -456,8 +456,7 @@ VOID _app_refreshdriveinfo (
 
 	if (!_app_driveisready (drive->buffer))
 	{
-		for (INT i = 0; i < _r_listview_getitemcount (hwnd, IDC_PROPERTIES); i++)
-			_r_listview_setitem (hwnd, IDC_PROPERTIES, i, 1, i ? L"n/a" : drive->buffer);
+		_r_listview_fillitems (hwnd, IDC_PROPERTIES, -1, -1, 1, L"n/a", I_IMAGENONE);
 
 		return;
 	}
@@ -487,7 +486,7 @@ VOID _app_refreshdriveinfo (
 		free_space = dl[drive_number].free_space;
 	}
 
-	_r_listview_setitem (hwnd, IDC_PROPERTIES, 2, 1, _app_driveislocked (drive->buffer) ? dl[drive_number].label->buffer : label->buffer);
+	_r_listview_setitem (hwnd, IDC_PROPERTIES, 2, 1, _app_driveislocked (drive->buffer) ? dl[drive_number].label->buffer : _r_obj_getstringordefault (label, L"<empty>"));
 
 	switch (GetDriveTypeW (drive->buffer))
 	{
@@ -517,7 +516,7 @@ VOID _app_refreshdriveinfo (
 
 		default:
 		{
-			_r_listview_setitem (hwnd, IDC_PROPERTIES, 3, 1, L"Unknown");
+			_r_listview_setitem (hwnd, IDC_PROPERTIES, 3, 1, L"n/a");
 			break;
 		}
 	}
@@ -556,30 +555,28 @@ INT_PTR CALLBACK PropertiesDlgProc (
 	{
 		case WM_INITDIALOG:
 		{
-			RECT rect;
-
 			_r_wnd_center (hwnd, GetParent (hwnd));
+
+			_r_ctrl_setstring (hwnd, 0, _r_locale_getstring (IDS_PROPERTIES));
 
 			_r_listview_setstyle (hwnd, IDC_PROPERTIES, LVS_EX_FULLROWSELECT | LVS_EX_INFOTIP | LVS_EX_DOUBLEBUFFER, TRUE);
 
-			GetClientRect (GetDlgItem (hwnd, IDC_PROPERTIES), &rect);
-
 			for (INT i = 0; i < 2; i++)
-				_r_listview_addcolumn (hwnd, IDC_PROPERTIES, i, NULL, rect.right / 2, 0);
+				_r_listview_addcolumn (hwnd, IDC_PROPERTIES, i, L"", -50, 0);
 
-			_r_listview_addgroup (hwnd, IDC_PROPERTIES, 0, L"General", 0, LVGS_COLLAPSIBLE, LVGS_COLLAPSIBLE);
-			_r_listview_addgroup (hwnd, IDC_PROPERTIES, 1, L"Space", 0, LVGS_COLLAPSIBLE, LVGS_COLLAPSIBLE);
+			_r_listview_addgroup (hwnd, IDC_PROPERTIES, 0, _r_locale_getstring (IDS_GROUP1), 0, LVGS_COLLAPSIBLE, LVGS_COLLAPSIBLE);
+			_r_listview_addgroup (hwnd, IDC_PROPERTIES, 1, _r_locale_getstring (IDS_GROUP2), 0, LVGS_COLLAPSIBLE, LVGS_COLLAPSIBLE);
 
-			_r_listview_additem_ex (hwnd, IDC_PROPERTIES, 0, L"Drive", I_IMAGENONE, 0, 0);
-			_r_listview_additem_ex (hwnd, IDC_PROPERTIES, 1, L"Status", I_IMAGENONE, 0, 0);
-			_r_listview_additem_ex (hwnd, IDC_PROPERTIES, 2, L"Label", I_IMAGENONE, 0, 0);
-			_r_listview_additem_ex (hwnd, IDC_PROPERTIES, 3, L"Type", I_IMAGENONE, 0, 0);
-			_r_listview_additem_ex (hwnd, IDC_PROPERTIES, 4, L"Filesystem", I_IMAGENONE, 0, 0);
-			_r_listview_additem_ex (hwnd, IDC_PROPERTIES, 5, L"Serial number", I_IMAGENONE, 0, 0);
+			_r_listview_additem_ex (hwnd, IDC_PROPERTIES, 0, _r_locale_getstring (IDS_DRIVE), I_IMAGENONE, 0, 0);
+			_r_listview_additem_ex (hwnd, IDC_PROPERTIES, 1, _r_locale_getstring (IDS_STATUS), I_IMAGENONE, 0, 0);
+			_r_listview_additem_ex (hwnd, IDC_PROPERTIES, 2, _r_locale_getstring (IDS_LABEL), I_IMAGENONE, 0, 0);
+			_r_listview_additem_ex (hwnd, IDC_PROPERTIES, 3, _r_locale_getstring (IDS_TYPE), I_IMAGENONE, 0, 0);
+			_r_listview_additem_ex (hwnd, IDC_PROPERTIES, 4, _r_locale_getstring (IDS_FILESYSTEM), I_IMAGENONE, 0, 0);
+			_r_listview_additem_ex (hwnd, IDC_PROPERTIES, 5, _r_locale_getstring (IDS_SERIAL), I_IMAGENONE, 0, 0);
 
-			_r_listview_additem_ex (hwnd, IDC_PROPERTIES, 6, L"Free space", I_IMAGENONE, 1, 0);
-			_r_listview_additem_ex (hwnd, IDC_PROPERTIES, 7, L"Used space", I_IMAGENONE, 1, 0);
-			_r_listview_additem_ex (hwnd, IDC_PROPERTIES, 8, L"Total space", I_IMAGENONE, 1, 0);
+			_r_listview_additem_ex (hwnd, IDC_PROPERTIES, 6, _r_locale_getstring (IDS_FREESPACE), I_IMAGENONE, 1, 0);
+			_r_listview_additem_ex (hwnd, IDC_PROPERTIES, 7, _r_locale_getstring (IDS_USEDSPACE), I_IMAGENONE, 1, 0);
+			_r_listview_additem_ex (hwnd, IDC_PROPERTIES, 8, _r_locale_getstring (IDS_TOTALSPACE), I_IMAGENONE, 1, 0);
 
 			drive = (PR_STRING)lparam;
 
@@ -615,17 +612,16 @@ INT_PTR CALLBACK PropertiesDlgProc (
 
 			hsubmenu = GetSubMenu (hmenu, 0);
 
-			if (!hsubmenu)
+			if (hsubmenu)
 			{
-				DestroyMenu (hmenu);
+				_r_menu_setitemtext (hsubmenu, IDM_COPY, FALSE, _r_locale_getstring (IDS_COPY));
+				_r_menu_setitemtext (hsubmenu, IDM_REFRESH, FALSE, _r_locale_getstring (IDS_REFRESH));
 
-				break;
+				if (!_r_listview_getselectedcount (hwnd, IDC_PROPERTIES))
+					_r_menu_enableitem (hsubmenu, IDM_REFRESH, MF_BYCOMMAND, FALSE);
+
+				_r_menu_popup (hsubmenu, hwnd, NULL, TRUE);
 			}
-
-			if (!_r_listview_getselectedcount (hwnd, IDC_PROPERTIES))
-				_r_menu_enableitem (hsubmenu, IDM_REFRESH, MF_BYCOMMAND, FALSE);
-
-			_r_menu_popup (hsubmenu, hwnd, NULL, TRUE);
 
 			DestroyMenu (hmenu);
 
@@ -671,32 +667,27 @@ INT_PTR CALLBACK PropertiesDlgProc (
 					PR_STRING string;
 					INT item_id = -1;
 
+					if (!_r_listview_getselectedcount (hwnd, IDC_PROPERTIES))
+						break;
+
 					_r_obj_initializestringbuilder (&sb, 256);
 
-					while ((item_id = _r_listview_getnextselected (hwnd, IDC_DRIVES, item_id)) != -1)
+					while ((item_id = _r_listview_getnextselected (hwnd, IDC_PROPERTIES, item_id)) != -1)
 					{
-						string = _r_listview_getitemtext (hwnd, IDC_PROPERTIES, item_id, 0);
-
-						if (!string)
-							continue;
-
-						_r_obj_appendstringbuilder2 (&sb, string);
-
-						_r_obj_dereference (string);
-
-						_r_obj_appendstringbuilder (&sb, L" = ");
-
 						string = _r_listview_getitemtext (hwnd, IDC_PROPERTIES, item_id, 1);
 
-						if (!string)
-							continue;
+						if (string)
+						{
+							_r_obj_appendstringbuilder2 (&sb, string);
+							_r_obj_appendstringbuilder (&sb, L"\r\n");
 
-						_r_obj_appendstringbuilder2 (&sb, string);
-
-						_r_obj_appendstringbuilder (&sb, L"\r\n");
+							_r_obj_dereference (string);
+						}
 					}
 
 					string = _r_obj_finalstringbuilder (&sb);
+
+					_r_str_trimstring2 (string, L"\r\n", 0);
 
 					_r_clipboard_set (hwnd, &string->sr);
 
@@ -737,11 +728,11 @@ LRESULT CALLBACK DlgProc
 
 			dpi_value = _r_dc_getwindowdpi (hwnd);
 
-			_r_listview_addcolumn (hwnd, IDC_DRIVES, 0, L"Drive", -10, 0);
-			_r_listview_addcolumn (hwnd, IDC_DRIVES, 1, L"Label", -40, 0);
-			_r_listview_addcolumn (hwnd, IDC_DRIVES, 2, L"Type", -40, 0);
-			_r_listview_addcolumn (hwnd, IDC_DRIVES, 3, L"Filesystem", -40, 0);
-			_r_listview_addcolumn (hwnd, IDC_DRIVES, 4, L"Status", -40, 0);
+			_r_listview_addcolumn (hwnd, IDC_DRIVES, 0, L"", -10, 0);
+			_r_listview_addcolumn (hwnd, IDC_DRIVES, 1, L"", -40, 0);
+			_r_listview_addcolumn (hwnd, IDC_DRIVES, 2, L"", -40, 0);
+			_r_listview_addcolumn (hwnd, IDC_DRIVES, 3, L"", -40, 0);
+			_r_listview_addcolumn (hwnd, IDC_DRIVES, 4, L"", -40, 0);
 
 			width = _r_dc_getsystemmetrics (SM_CXSMICON, dpi_value);
 
@@ -763,7 +754,7 @@ LRESULT CALLBACK DlgProc
 			if (hmenu)
 			{
 				_r_menu_checkitem (hmenu, IDM_ALWAYSONTOP_CHK, 0, MF_BYCOMMAND, _r_config_getboolean (L"AlwaysOnTop", FALSE));
-				_r_menu_checkitem (hmenu, IDM_USEDARKTHEME_CHK, 0, MF_BYCOMMAND, _r_theme_isenabled ());
+				_r_menu_checkitem (hmenu, IDM_DARKMODE_CHK, 0, MF_BYCOMMAND, _r_theme_isenabled ());
 				_r_menu_checkitem (hmenu, IDM_CHECKUPDATES_CHK, 0, MF_BYCOMMAND, _r_update_isenabled (FALSE));
 			}
 
@@ -772,6 +763,41 @@ LRESULT CALLBACK DlgProc
 			_app_refreshdrives (hwnd);
 
 			_r_layout_initializemanager (&layout_manager, hwnd);
+
+			break;
+		}
+
+		case RM_LOCALIZE:
+		{
+			HMENU hmenu;
+
+			// localize
+			hmenu = GetMenu (hwnd);
+
+			if (hmenu)
+			{
+				_r_menu_setitemtext (hmenu, 0, TRUE, _r_locale_getstring (IDS_FILE));
+				_r_menu_setitemtext (hmenu, 1, TRUE, _r_locale_getstring (IDS_SETTINGS));
+				_r_menu_setitemtext (hmenu, 2, TRUE, _r_locale_getstring (IDS_HELP));
+
+				_r_menu_setitemtextformat (hmenu, IDM_SETTINGS, FALSE, L"%s...\tF2", _r_locale_getstring (IDS_SETTINGS));
+				_r_menu_setitemtextformat (hmenu, IDM_EXIT, FALSE, L"%s\tEsc", _r_locale_getstring (IDS_EXIT));
+				_r_menu_setitemtext (hmenu, IDM_ALWAYSONTOP_CHK, FALSE, _r_locale_getstring (IDS_ALWAYSONTOP_CHK));
+				_r_menu_setitemtext (hmenu, IDM_DARKMODE_CHK, FALSE, _r_locale_getstring (IDS_DARKMODE_CHK));
+				_r_menu_setitemtext (hmenu, IDM_CHECKUPDATES_CHK, FALSE, _r_locale_getstring (IDS_CHECKUPDATES_CHK));
+				_r_menu_setitemtextformat (GetSubMenu (hmenu, 1), LANG_MENU, TRUE, L"%s (Language)", _r_locale_getstring (IDS_LANGUAGE));
+				_r_menu_setitemtext (hmenu, IDM_WEBSITE, FALSE, _r_locale_getstring (IDS_WEBSITE));
+				_r_menu_setitemtext (hmenu, IDM_CHECKUPDATES, FALSE, _r_locale_getstring (IDS_CHECKUPDATES));
+				_r_menu_setitemtextformat (hmenu, IDM_ABOUT, FALSE, L"%s\tF1", _r_locale_getstring (IDS_ABOUT));
+
+				_r_locale_enum (GetSubMenu (hmenu, 1), LANG_MENU, IDX_LANGUAGE); // enum localizations
+			}
+
+			_r_listview_setcolumn (hwnd, IDC_DRIVES, 0, _r_locale_getstring (IDS_DRIVE), 0);
+			_r_listview_setcolumn (hwnd, IDC_DRIVES, 1, _r_locale_getstring (IDS_LABEL), 0);
+			_r_listview_setcolumn (hwnd, IDC_DRIVES, 2, _r_locale_getstring (IDS_TYPE), 0);
+			_r_listview_setcolumn (hwnd, IDC_DRIVES, 3, _r_locale_getstring (IDS_FILESYSTEM), 0);
+			_r_listview_setcolumn (hwnd, IDC_DRIVES, 4, _r_locale_getstring (IDS_STATUS), 0);
 
 			break;
 		}
@@ -805,52 +831,77 @@ LRESULT CALLBACK DlgProc
 			break;
 		}
 
-		case WM_CLOSE:
+		case WM_DESTROY:
 		{
 			_app_unlockalldrives (hwnd);
 
-			DestroyWindow (hwnd);
 			PostQuitMessage (0);
 
 			break;
 		}
 
-		case WM_CONTEXTMENU:
+		case WM_CLOSE:
 		{
-			HMENU hmenu;
-			HMENU hsubmenu;
 
-			if (GetDlgCtrlID ((HWND)wparam) != IDC_DRIVES)
-				break;
-
-			hmenu = LoadMenuW (NULL, MAKEINTRESOURCEW (IDM_DRIVES));
-
-			if (!hmenu)
-				break;
-
-			hsubmenu = GetSubMenu (hmenu, 0);
-
-			if (_r_listview_getselectedcount (hwnd, IDC_DRIVES))
-				_r_menu_popup (hsubmenu, hwnd, NULL, TRUE);
-
-			DestroyMenu (hmenu);
-
+			DestroyWindow (hwnd);
 			break;
 		}
 
 		case WM_NOTIFY:
 		{
-			LPNMHDR lpnmhdr;
+			LPNMHDR nmlp;
 
-			lpnmhdr = (LPNMHDR)lparam;
+			nmlp = (LPNMHDR)lparam;
 
-			switch (lpnmhdr->code)
+			switch (nmlp->code)
 			{
+				case NM_RCLICK:
+				{
+					LPNMITEMACTIVATE lpnmlv;
+					HMENU hsubmenu;
+					HMENU hmenu;
+
+					lpnmlv = (LPNMITEMACTIVATE)lparam;
+
+					if (!nmlp->idFrom || lpnmlv->iItem == -1 || nmlp->idFrom != IDC_DRIVES)
+						break;
+
+					// localize
+					hmenu = LoadMenuW (NULL, MAKEINTRESOURCEW (IDM_DRIVES));
+
+					if (!hmenu)
+						break;
+
+					hsubmenu = GetSubMenu (hmenu, 0);
+
+					if (hsubmenu)
+					{
+						_r_menu_setitemtext (hsubmenu, IDM_OPEN, FALSE, _r_locale_getstring (IDS_OPEN));
+						_r_menu_setitemtext (hsubmenu, IDM_PROTECT, FALSE, _r_locale_getstring (IDS_PROTECT));
+						_r_menu_setitemtext (hsubmenu, IDM_UNPROTECT, FALSE, _r_locale_getstring (IDS_UNPROTECT));
+						_r_menu_setitemtextformat (hsubmenu, IDM_REFRESH, FALSE, L"%s\tF5", _r_locale_getstring (IDS_REFRESH));
+						_r_menu_setitemtextformat (hsubmenu, IDM_COPY, FALSE, L"%s\tCtrl+C", _r_locale_getstring (IDS_COPY));
+						_r_menu_setitemtext (hsubmenu, 7, TRUE, _r_locale_getstring (IDS_SERVICE));
+						_r_menu_setitemtext (hsubmenu, IDM_LOCK, FALSE, _r_locale_getstring (IDS_LOCK));
+						_r_menu_setitemtext (hsubmenu, IDM_UNLOCK, FALSE, _r_locale_getstring (IDS_UNLOCK));
+						_r_menu_setitemtext (hsubmenu, IDM_UNLOCK_ALL, FALSE, _r_locale_getstring (IDS_UNLOCK_ALL));
+						_r_menu_setitemtext (hsubmenu, IDM_EJECT, FALSE, _r_locale_getstring (IDS_EJECT));
+						_r_menu_setitemtext (hsubmenu, IDM_FORMAT, FALSE, _r_locale_getstring (IDS_FORMAT));
+						_r_menu_setitemtext (hsubmenu, IDM_PROPERTY, FALSE, _r_locale_getstring (IDS_PROPERTIES));
+
+						_r_menu_popup (hsubmenu, hwnd, NULL, TRUE);
+					}
+
+					DestroyMenu (hmenu);
+
+					break;
+				}
+
 				case NM_DBLCLK:
 				{
 					LPNMITEMACTIVATE lpnmia;
 
-					if (lpnmhdr->idFrom != IDC_DRIVES)
+					if (nmlp->idFrom != IDC_DRIVES)
 						break;
 
 					lpnmia = (LPNMITEMACTIVATE)lparam;
@@ -868,6 +919,30 @@ LRESULT CALLBACK DlgProc
 		case WM_COMMAND:
 		{
 			INT ctrl_id = LOWORD (wparam);
+			INT notify_code = HIWORD (wparam);
+
+			if (notify_code == 0 && ctrl_id >= IDX_LANGUAGE && ctrl_id <= IDX_LANGUAGE + (INT)(_r_locale_getcount () + 1))
+			{
+				HMENU hsubmenu;
+				HMENU hmenu;
+
+				hmenu = GetMenu (hwnd);
+
+				if (hmenu)
+				{
+					hsubmenu = GetSubMenu (hmenu, 1);
+
+					if (hsubmenu)
+					{
+						hsubmenu = GetSubMenu (hsubmenu, LANG_MENU);
+
+						if (hsubmenu)
+							_r_locale_apply (hsubmenu, ctrl_id, IDX_LANGUAGE);
+					}
+				}
+
+				return FALSE;
+			}
 
 			switch (ctrl_id)
 			{
@@ -892,7 +967,7 @@ LRESULT CALLBACK DlgProc
 					break;
 				}
 
-				case IDM_USEDARKTHEME_CHK:
+				case IDM_DARKMODE_CHK:
 				{
 					BOOLEAN new_val;
 
@@ -923,7 +998,7 @@ LRESULT CALLBACK DlgProc
 					break;
 				}
 
-				case IDM_CHECK_UPDATES:
+				case IDM_CHECKUPDATES:
 				{
 					_r_update_check (hwnd);
 					break;

@@ -8,6 +8,8 @@
 #include "resource.h"
 #include "app.h"
 
+#define LANG_MENU 4
+
 typedef struct _DRIVE_LOCK
 {
 	PR_STRING label;
