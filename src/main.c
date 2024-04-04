@@ -125,6 +125,23 @@ INT _app_getdriveimage (
 	return 0; // normal
 }
 
+VOID _app_setstatusparts (
+	_In_ HWND hwnd
+)
+{
+	LONG parts[4] = {0};
+	LONG width;
+
+	width = _r_ctrl_getwidth (hwnd, 0);
+
+	parts[0] = _r_calc_percentval (25, width);
+	parts[1] = _r_calc_percentval (50, width);
+	parts[2] = _r_calc_percentval (75, width);
+	parts[3] = -1;
+
+	_r_status_setparts (hwnd, IDC_STATUSBAR, parts, RTL_NUMBER_OF (parts));
+}
+
 VOID _app_refreshdrives (
 	_In_ HWND hwnd
 )
@@ -135,22 +152,16 @@ VOID _app_refreshdrives (
 	PR_STRING file_system = NULL;
 	ULONG_PTR drive_number;
 	ULONG drives;
-	LONG dpi_value;
 	DRIVE_STATUS status;
-	INT protected_count = 0;
-	INT infected_count = 0;
-	INT locked_count = 0;
-	INT parts[4] = {0};
-	INT image_id;
+	LONG protected_count = 0;
+	LONG infected_count = 0;
+	LONG locked_count = 0;
+	LONG dpi_value;
+	LONG image_id;
 
 	dpi_value = _r_dc_getwindowdpi (hwnd);
 
-	parts[0] = _r_dc_getdpi (110, dpi_value);
-	parts[1] = _r_dc_getdpi (210, dpi_value);
-	parts[2] = _r_dc_getdpi (350, dpi_value);
-	parts[3] = -1;
-
-	_r_status_setparts (hwnd, IDC_STATUSBAR, parts, RTL_NUMBER_OF (parts));
+	_app_setstatusparts (hwnd);
 
 	_r_listview_setcolumn (hwnd, IDC_DRIVES, 0, NULL, _r_dc_getdpi (50, dpi_value));
 	_r_listview_setcolumn (hwnd, IDC_DRIVES, 1, NULL, _r_dc_getdpi (90, dpi_value));
@@ -254,10 +265,10 @@ VOID _app_refreshdrives (
 		j += 1;
 	}
 
-	_r_status_settextformat (hwnd, IDC_STATUSBAR, 0, L"Total drives: %d", _r_listview_getitemcount (hwnd, IDC_DRIVES));
-	_r_status_settextformat (hwnd, IDC_STATUSBAR, 1, L"Protected: %d", protected_count);
-	_r_status_settextformat (hwnd, IDC_STATUSBAR, 2, L"Infected: %d", infected_count);
-	_r_status_settextformat (hwnd, IDC_STATUSBAR, 3, L"Locked: %d", locked_count);
+	_r_status_settextformat (hwnd, IDC_STATUSBAR, 0, L"%s: %d", _r_locale_getstring (IDS_TOTALDRIVES), _r_listview_getitemcount (hwnd, IDC_DRIVES));
+	_r_status_settextformat (hwnd, IDC_STATUSBAR, 1, L"%s: %d", _r_locale_getstring (IDS_PROTECTEDDRIVES), protected_count);
+	_r_status_settextformat (hwnd, IDC_STATUSBAR, 2, L"%s: %d", _r_locale_getstring (IDS_INFECTEDDRIVES), infected_count);
+	_r_status_settextformat (hwnd, IDC_STATUSBAR, 3, L"%s: %d", _r_locale_getstring (IDS_LOCKEDDRIVES), locked_count);
 
 	if (label)
 		_r_obj_dereference (label);
@@ -744,7 +755,7 @@ LRESULT CALLBACK DlgProc
 
 				ImageList_ReplaceIcon (himglist, -1, hicon);
 
-				_r_wnd_sendmessage (hwnd, IDC_STATUSBAR, SB_SETICON, j, (LPARAM)ImageList_GetIcon (himglist, j, ILD_NORMAL));
+				_r_status_seticon (hwnd, IDC_STATUSBAR, j, ImageList_GetIcon (himglist, j, ILD_NORMAL));
 
 				DestroyIcon (hicon);
 			}
@@ -815,6 +826,8 @@ LRESULT CALLBACK DlgProc
 			_r_listview_setcolumn (hwnd, IDC_DRIVES, 2, NULL, -20);
 			_r_listview_setcolumn (hwnd, IDC_DRIVES, 3, NULL, -20);
 			_r_listview_setcolumn (hwnd, IDC_DRIVES, 4, NULL, -20);
+
+			_app_setstatusparts (hwnd);
 
 			break;
 		}
