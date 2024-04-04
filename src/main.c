@@ -173,7 +173,7 @@ VOID _app_refreshdrives (
 
 	_r_fs_getdisklist (&drives);
 
-	for (INT i = 0, j = 0; i < PR_DEVICE_COUNT; i++)
+	for (LONG i = 0, j = 0; i < PR_DEVICE_COUNT; i++)
 	{
 		if (!((drives >> i) & 0x00000001))
 			continue;
@@ -809,6 +809,8 @@ LRESULT CALLBACK DlgProc
 			_r_listview_setcolumn (hwnd, IDC_DRIVES, 2, _r_locale_getstring (IDS_TYPE), 0);
 			_r_listview_setcolumn (hwnd, IDC_DRIVES, 3, _r_locale_getstring (IDS_FILESYSTEM), 0);
 			_r_listview_setcolumn (hwnd, IDC_DRIVES, 4, _r_locale_getstring (IDS_STATUS), 0);
+
+			_app_refreshdrives (hwnd);
 
 			break;
 		}
