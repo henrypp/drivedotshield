@@ -146,6 +146,11 @@ STRINGTABLE
 	IDS_USEDSPACE "Used space"
 	IDS_TOTALSPACE "Total space"
 
+	IDS_TOTALDRIVES "Total drives"
+	IDS_PROTECTEDDRIVES "Protected"
+	IDS_INFECTEDDRIVES "Infected"
+	IDS_LOCKEDDRIVES "Locked"
+
 	IDS_COPY "Copy"
 	IDS_REFRESH "Refresh"
 
