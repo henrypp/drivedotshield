@@ -533,7 +533,7 @@ VOID _app_refreshdriveinfo (
 	}
 
 	_r_listview_setitem (hwnd, IDC_PROPERTIES, 4, 1, _app_driveislocked (drive->buffer) ? dl[drive_number].file_system->buffer : _r_obj_getstringordefault (file_system, L"<unknown>"));
-	_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"%04X-%04X", HIWORD (serial_number), LOWORD (serial_number));
+	_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"%" PR_ULONG " (%04X-%04X)", serial_number, HIWORD (serial_number), LOWORD (serial_number));
 
 	_r_listview_setitem (hwnd, IDC_PROPERTIES, 5, 1, buffer);
 
