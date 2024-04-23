@@ -689,7 +689,7 @@ INT_PTR CALLBACK PropertiesDlgProc (
 
 						if (string)
 						{
-							_r_obj_appendstringbuilder2 (&sb, string);
+							_r_obj_appendstringbuilder2 (&sb, &string->sr);
 							_r_obj_appendstringbuilder (&sb, L"\r\n");
 
 							_r_obj_dereference (string);
@@ -698,7 +698,7 @@ INT_PTR CALLBACK PropertiesDlgProc (
 
 					string = _r_obj_finalstringbuilder (&sb);
 
-					_r_str_trimstring2 (string, L"\r\n", 0);
+					_r_str_trimstring2 (&string->sr, L"\r\n", 0);
 
 					_r_clipboard_set (hwnd, &string->sr);
 
