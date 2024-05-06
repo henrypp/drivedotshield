@@ -125,6 +125,21 @@ INT _app_getdriveimage (
 	return 0; // normal
 }
 
+VOID _app_resizecolumns (
+	_In_ HWND hwnd
+)
+{
+	LONG dpi_value;
+
+	dpi_value = _r_dc_getwindowdpi (hwnd);
+
+	_r_listview_setcolumn (hwnd, IDC_DRIVES, 0, NULL, -10);
+	_r_listview_setcolumn (hwnd, IDC_DRIVES, 1, NULL, -30);
+	_r_listview_setcolumn (hwnd, IDC_DRIVES, 2, NULL, -20);
+	_r_listview_setcolumn (hwnd, IDC_DRIVES, 3, NULL, -20);
+	_r_listview_setcolumn (hwnd, IDC_DRIVES, 4, NULL, -20);
+}
+
 VOID _app_setstatusparts (
 	_In_ HWND hwnd
 )
@@ -269,6 +284,8 @@ VOID _app_refreshdrives (
 	_r_status_settextformat (hwnd, IDC_STATUSBAR, 1, L"%s: %d", _r_locale_getstring (IDS_PROTECTEDDRIVES), protected_count);
 	_r_status_settextformat (hwnd, IDC_STATUSBAR, 2, L"%s: %d", _r_locale_getstring (IDS_INFECTEDDRIVES), infected_count);
 	_r_status_settextformat (hwnd, IDC_STATUSBAR, 3, L"%s: %d", _r_locale_getstring (IDS_LOCKEDDRIVES), locked_count);
+
+	_app_resizecolumns (hwnd);
 
 	if (label)
 		_r_obj_dereference (label);
@@ -533,7 +550,7 @@ VOID _app_refreshdriveinfo (
 	}
 
 	_r_listview_setitem (hwnd, IDC_PROPERTIES, 4, 1, _app_driveislocked (drive->buffer) ? dl[drive_number].file_system->buffer : _r_obj_getstringordefault (file_system, L"<unknown>"));
-	_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"%" PR_ULONG " (%04X-%04X)", serial_number, HIWORD (serial_number), LOWORD (serial_number));
+	_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"%" TEXT (PR_ULONG) " (%04X-%04X)", serial_number, HIWORD (serial_number), LOWORD (serial_number));
 
 	_r_listview_setitem (hwnd, IDC_PROPERTIES, 5, 1, buffer);
 
@@ -817,17 +834,9 @@ LRESULT CALLBACK DlgProc
 
 		case WM_SIZE:
 		{
-			LONG dpi_value;
-
 			_r_layout_resize (&layout_manager, wparam);
 
-			dpi_value = _r_dc_getwindowdpi (hwnd);
-
-			_r_listview_setcolumn (hwnd, IDC_DRIVES, 0, NULL, -10);
-			_r_listview_setcolumn (hwnd, IDC_DRIVES, 1, NULL, -30);
-			_r_listview_setcolumn (hwnd, IDC_DRIVES, 2, NULL, -20);
-			_r_listview_setcolumn (hwnd, IDC_DRIVES, 3, NULL, -20);
-			_r_listview_setcolumn (hwnd, IDC_DRIVES, 4, NULL, -20);
+			_app_resizecolumns (hwnd);
 
 			_app_setstatusparts (hwnd);
 
