@@ -13,14 +13,14 @@
 DRIVE_LOCK dl[PR_DEVICE_COUNT] = {0};
 
 ULONG_PTR _app_getdrivenumber (
-	_In_ LPCWSTR drive
+	_In_ LPWSTR drive
 )
 {
 	return (ULONG_PTR)(drive[0] - 65);
 }
 
 BOOLEAN _app_driveislocked (
-	_In_ LPCWSTR drive
+	_In_ LPWSTR drive
 )
 {
 	ULONG_PTR i;
@@ -34,7 +34,7 @@ BOOLEAN _app_driveislocked (
 }
 
 BOOLEAN _app_driveisready (
-	_In_ LPCWSTR drive
+	_In_ LPWSTR drive
 )
 {
 	WCHAR buffer[64];
@@ -60,13 +60,12 @@ BOOLEAN _app_driveisready (
 }
 
 DRIVE_STATUS _app_getdrivestatus (
-	_In_ LPCWSTR drive,
+	_In_ LPWSTR drive,
 	_Out_writes_z_ (buffer_length) LPWSTR buffer,
 	_In_ _In_range_ (1, PR_SIZE_MAX_STRING_LENGTH) ULONG_PTR buffer_length
 )
 {
-	WCHAR path[64];
-	ULONG attributes;
+	PR_STRING path;
 
 	if (_app_driveislocked (drive))
 	{
@@ -75,15 +74,15 @@ DRIVE_STATUS _app_getdrivestatus (
 		return DS_LOCKED;
 	}
 
-	_r_str_printf (path, RTL_NUMBER_OF (path), L"%C:\\autorun.inf", drive[0]);
+	path = _r_format_string (L"%C:\\autorun.inf", drive[0]);
 
-	if (_r_fs_exists (path))
+	if (_r_fs_exists (&path->sr))
 	{
-		_r_fs_getattributes (path, &attributes);
-
-		if (attributes & FILE_ATTRIBUTE_DIRECTORY)
+		if (_r_fs_isdirectory (&path->sr))
 		{
 			_r_str_copy (buffer, buffer_length, L"Protected");
+
+			_r_obj_dereference (path);
 
 			return DS_PROTECTED;
 		}
@@ -91,11 +90,15 @@ DRIVE_STATUS _app_getdrivestatus (
 		{
 			_r_str_copy (buffer, buffer_length, L"Infected");
 
+			_r_obj_dereference (path);
+
 			return DS_INFECTED;
 		}
 	}
 
 	_r_str_copy (buffer, buffer_length, L"Normal");
+
+	_r_obj_dereference (path);
 
 	return DS_NORMAL;
 }
@@ -338,25 +341,22 @@ NTSTATUS _app_unprotectdrive (
 	_In_ LPCWSTR drive
 )
 {
-	WCHAR autorun_file[64];
-	ULONG attributes;
-	NTSTATUS status;
+	PR_STRING autorun_file;
+	NTSTATUS status = STATUS_ABANDON_HIBERFILE;
 
-	_r_str_printf (autorun_file, RTL_NUMBER_OF (autorun_file), L"%C:\\autorun.inf", drive[0]);
+	autorun_file = _r_format_string (L"%C:\\autorun.inf", drive[0]);
 
-	_r_fs_setattributes (autorun_file, NULL, FILE_ATTRIBUTE_NORMAL);
-
-	status = _r_fs_getattributes (autorun_file, &attributes);
+	_r_fs_setattributes (NULL, autorun_file->buffer, FILE_ATTRIBUTE_NORMAL);
 
 	if (NT_SUCCESS (status))
 	{
-		if (attributes & FILE_ATTRIBUTE_DIRECTORY)
+		if (_r_fs_isdirectory (&autorun_file->sr))
 		{
-			status = _r_fs_deletedirectory (autorun_file, TRUE);
+			status = _r_fs_deletedirectory (autorun_file->buffer, TRUE);
 		}
 		else
 		{
-			status = _r_fs_deletefile (autorun_file, NULL);
+			status = _r_fs_deletefile (autorun_file->buffer, NULL);
 		}
 	}
 
@@ -367,7 +367,7 @@ NTSTATUS _app_unprotectdrive (
 }
 
 NTSTATUS _app_lockdrive (
-	_In_ LPCWSTR drive
+	_In_ LPWSTR drive
 )
 {
 	WCHAR buffer[64];
@@ -403,7 +403,7 @@ NTSTATUS _app_lockdrive (
 }
 
 NTSTATUS _app_unlockdrive (
-	_In_ LPCWSTR drive
+	_In_ LPWSTR drive
 )
 {
 	ULONG_PTR drive_number;
@@ -1050,7 +1050,7 @@ LRESULT CALLBACK DlgProc
 							continue;
 
 						if (!_app_driveislocked (string->buffer))
-							_r_shell_showfile (string->buffer);
+							_r_shell_showfile (&string->sr);
 
 						_r_obj_dereference (string);
 					}
