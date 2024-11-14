@@ -1,5 +1,5 @@
 // Drive Dot Shield
-// Copyright (c) 2012-2024 Henry++
+// Copyright (c) 2012-2025 Henry++
 
 #pragma once
 
@@ -10,10 +10,18 @@
 
 #define LANG_MENU 4
 
+typedef enum _DRIVE_STATUS
+{
+	DS_NORMAL,
+	DS_PROTECTED,
+	DS_INFECTED, // maybe
+	DS_LOCKED
+} DRIVE_STATUS;
+
 typedef struct _DRIVE_LOCK
 {
-	PR_STRING label;
 	PR_STRING file_system;
+	PR_STRING label;
 
 	LARGE_INTEGER total_space;
 	LARGE_INTEGER free_space;
@@ -23,10 +31,12 @@ typedef struct _DRIVE_LOCK
 	ULONG serial_number;
 } DRIVE_LOCK;
 
-typedef enum _DRIVE_STATUS
+typedef struct _ITEM_CONTEXT
 {
-	DS_NORMAL,
-	DS_PROTECTED,
-	DS_INFECTED, // maybe
-	DS_LOCKED
-} DRIVE_STATUS;
+	DRIVE_STATUS drive_status;
+	PR_STRING file_system;
+	PR_STRING drive;
+	PR_STRING label;
+	ULONG drive_type;
+	LONG icon_id;
+} ITEM_CONTEXT, *PITEM_CONTEXT;

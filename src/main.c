@@ -1,5 +1,5 @@
 ﻿// Drive Dot Shield
-// Copyright (c) 2012-2024 Henry++
+// Copyright (c) 2012-2025 Henry++
 
 
 #include "routine.h"
@@ -12,15 +12,33 @@
 
 DRIVE_LOCK dl[PR_DEVICE_COUNT] = {0};
 
-ULONG_PTR _app_getdrivenumber (
-	_In_ LPWSTR drive
+VOID NTAPI _app_dereferencecontext (
+	_In_ PVOID entry
 )
 {
-	return (ULONG_PTR)(drive[0] - 65);
+	PITEM_CONTEXT ptr_item;
+
+	ptr_item = entry;
+
+	if (ptr_item->file_system)
+		_r_obj_dereference (ptr_item->file_system);
+
+	if (ptr_item->drive)
+		_r_obj_dereference (ptr_item->drive);
+
+	if (ptr_item->label)
+		_r_obj_dereference (ptr_item->label);
+}
+
+ULONG_PTR _app_getdrivenumber (
+	_In_ PR_STRINGREF drive
+)
+{
+	return (ULONG_PTR)(drive->buffer[0] - 65);
 }
 
 BOOLEAN _app_driveislocked (
-	_In_ LPWSTR drive
+	_In_ PR_STRINGREF drive
 )
 {
 	ULONG_PTR i;
@@ -33,8 +51,155 @@ BOOLEAN _app_driveislocked (
 	return FALSE;
 }
 
+DRIVE_STATUS _app_getdrivestatus (
+	_In_ PR_STRINGREF drive
+)
+{
+	PR_STRING path;
+
+	if (_app_driveislocked (drive))
+		return DS_LOCKED;
+
+	path = _r_format_string (L"%C:\\autorun.inf", drive->buffer[0]);
+
+	if (_r_fs_exists (&path->sr))
+	{
+		if (_r_fs_isdirectory (&path->sr))
+		{
+			_r_obj_dereference (path);
+
+			return DS_PROTECTED;
+		}
+		else
+		{
+			_r_obj_dereference (path);
+
+			return DS_INFECTED;
+		}
+	}
+
+	_r_obj_dereference (path);
+
+	return DS_NORMAL;
+}
+
+VOID _app_displayinfo_callback (
+	_Inout_ LPNMLVDISPINFOW lpnmlv
+)
+{
+	PITEM_CONTEXT context;
+
+	context = (PITEM_CONTEXT)lpnmlv->item.lParam;
+
+	if (!context)
+		return;
+
+	// set text
+	if (lpnmlv->item.mask & LVIF_TEXT)
+	{
+		switch (lpnmlv->item.iSubItem)
+		{
+			case 0:
+			{
+				_r_str_copy (lpnmlv->item.pszText, lpnmlv->item.cchTextMax, _r_obj_getstringordefault (context->drive, L"<empty>"));
+				break;
+			}
+
+			case 1:
+			{
+				_r_str_copy (lpnmlv->item.pszText, lpnmlv->item.cchTextMax, _r_obj_getstringordefault (context->label, L"<empty>"));
+				break;
+			}
+
+			case 2:
+			{
+				switch (context->drive_type)
+				{
+					case DRIVE_REMOVABLE:
+					{
+						_r_str_copy (lpnmlv->item.pszText, lpnmlv->item.cchTextMax, L"Removable");
+						break;
+					}
+
+					case DRIVE_FIXED:
+					{
+						_r_str_copy (lpnmlv->item.pszText, lpnmlv->item.cchTextMax, L"Local");
+						break;
+					}
+
+					case DRIVE_REMOTE:
+					{
+						_r_str_copy (lpnmlv->item.pszText, lpnmlv->item.cchTextMax, L"Network");
+						break;
+					}
+
+					case DRIVE_CDROM:
+					{
+						_r_str_copy (lpnmlv->item.pszText, lpnmlv->item.cchTextMax, L"CD-ROM");
+						break;
+					}
+
+					default:
+					{
+						_r_str_copy (lpnmlv->item.pszText, lpnmlv->item.cchTextMax, L"Unknown");
+						break;
+					}
+				}
+
+				break;
+			}
+
+			case 3:
+			{
+				_r_str_copy (lpnmlv->item.pszText, lpnmlv->item.cchTextMax, _r_obj_getstringordefault (context->file_system, L"<empty>"));
+				break;
+			}
+
+			case 4:
+			{
+				DRIVE_STATUS status;
+
+				status = _app_getdrivestatus (&context->drive->sr);
+
+				switch (status)
+				{
+					case DS_NORMAL:
+					{
+						_r_str_copy (lpnmlv->item.pszText, lpnmlv->item.cchTextMax, L"Normal");
+						break;
+					}
+
+					case DS_PROTECTED:
+					{
+						_r_str_copy (lpnmlv->item.pszText, lpnmlv->item.cchTextMax, L"Protected");
+						break;
+					}
+
+					case DS_INFECTED:
+					{
+						_r_str_copy (lpnmlv->item.pszText, lpnmlv->item.cchTextMax, L"Infected");
+						break;
+					}
+
+					case DS_LOCKED:
+					{
+						_r_str_copy (lpnmlv->item.pszText, lpnmlv->item.cchTextMax, L"Locked");
+						break;
+					}
+				}
+
+				break;
+			}
+		}
+	}
+
+	// set image
+	if (lpnmlv->item.mask & LVIF_IMAGE)
+		lpnmlv->item.iImage = context->icon_id;
+}
+
 BOOLEAN _app_driveisready (
-	_In_ LPWSTR drive
+	_In_ PR_STRINGREF drive
 )
 {
 	WCHAR buffer[64];
@@ -45,7 +210,7 @@ BOOLEAN _app_driveisready (
 	if (_app_driveislocked (drive))
 		return TRUE;
 
-	_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"%C:\\", drive[0]);
+	_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"%C:\\", drive->buffer[0]);
 
 	NtQueryInformationProcess (NtCurrentProcess (), ProcessDefaultHardErrorMode, &old_error_mode, sizeof (old_error_mode), NULL);
 
@@ -59,51 +224,7 @@ BOOLEAN _app_driveisready (
 	return NT_SUCCESS (status);
 }
 
-DRIVE_STATUS _app_getdrivestatus (
-	_In_ LPWSTR drive,
-	_Out_writes_z_ (buffer_length) LPWSTR buffer,
-	_In_ _In_range_ (1, PR_SIZE_MAX_STRING_LENGTH) ULONG_PTR buffer_length
-)
-{
-	PR_STRING path;
-
-	if (_app_driveislocked (drive))
-	{
-		_r_str_copy (buffer, buffer_length, L"Locked");
-
-		return DS_LOCKED;
-	}
-
-	path = _r_format_string (L"%C:\\autorun.inf", drive[0]);
-
-	if (_r_fs_exists (&path->sr))
-	{
-		if (_r_fs_isdirectory (&path->sr))
-		{
-			_r_str_copy (buffer, buffer_length, L"Protected");
-
-			_r_obj_dereference (path);
-
-			return DS_PROTECTED;
-		}
-		else
-		{
-			_r_str_copy (buffer, buffer_length, L"Infected");
-
-			_r_obj_dereference (path);
-
-			return DS_INFECTED;
-		}
-	}
-
-	_r_str_copy (buffer, buffer_length, L"Normal");
-
-	_r_obj_dereference (path);
-
-	return DS_NORMAL;
-}
-
-INT _app_getdriveimage (
+LONG _app_getdriveimage (
 	_In_ DRIVE_STATUS status
 )
 {
@@ -164,18 +285,13 @@ VOID _app_refreshdrives (
 	_In_ HWND hwnd
 )
 {
-	WCHAR buffer[128];
-	WCHAR drive[8] = {0};
-	PR_STRING label = NULL;
-	PR_STRING file_system = NULL;
+	PITEM_CONTEXT context;
 	ULONG_PTR drive_number;
 	ULONG drives;
-	DRIVE_STATUS status;
 	LONG protected_count = 0;
 	LONG infected_count = 0;
 	LONG locked_count = 0;
 	LONG dpi_value;
-	LONG image_id;
 
 	dpi_value = _r_dc_getwindowdpi (hwnd);
 
@@ -196,70 +312,36 @@ VOID _app_refreshdrives (
 		if (!((drives >> i) & 0x00000001))
 			continue;
 
-		_r_str_printf (drive, RTL_NUMBER_OF (drive), L"%C:", (65 + i));
+		context = _r_obj_allocate (sizeof (ITEM_CONTEXT), &_app_dereferencecontext);
 
-		if (!_app_driveisready (drive))
-			continue;
+		context->drive = _r_format_string (L"%C:", (65 + i));
 
-		drive_number = _app_getdrivenumber (drive);
-
-		status = _app_getdrivestatus (drive, buffer, RTL_NUMBER_OF (buffer));
-
-		image_id = _app_getdriveimage (status);
-
-		_r_listview_additem_ex (hwnd, IDC_DRIVES, j, drive, image_id, I_GROUPIDNONE, 0);
-
-		drive[2] = L'\\';
-
-		if (!_app_driveislocked (drive))
+		if (!_app_driveisready (&context->drive->sr))
 		{
-			_r_fs_getdiskinformation (NULL, drive, &label, &file_system, NULL, &dl[drive_number].serial_number);
+			_r_obj_dereference (context);
+
+			continue;
+		}
+
+		drive_number = _app_getdrivenumber (&context->drive->sr);
+
+		_r_listview_additem (hwnd, IDC_DRIVES, j, LPSTR_TEXTCALLBACK, I_IMAGECALLBACK, I_DEFAULT, (LPARAM)context);
+
+		if (_app_driveislocked (&context->drive->sr))
+		{
+			context->file_system = _r_obj_referenceemptystring ();
+			context->label = _r_obj_referenceemptystring ();
 		}
 		else
 		{
-			label = _r_obj_referenceemptystring ();
-			file_system = _r_obj_referenceemptystring ();
+			_r_fs_getdiskinformation (NULL, &context->drive->sr, &context->label, &context->file_system, NULL, &dl[drive_number].serial_number);
 		}
 
-		_r_listview_setitem (hwnd, IDC_DRIVES, j, 1, _app_driveislocked (drive) ? dl[drive_number].label->buffer : _r_obj_getstringordefault (label, L"<empty>"));
-		_r_listview_setitem (hwnd, IDC_DRIVES, j, 3, _app_driveislocked (drive) ? dl[drive_number].file_system->buffer : file_system->buffer);
+		context->drive_type = GetDriveTypeW (context->drive->buffer);
 
-		switch (GetDriveTypeW (drive))
-		{
-			case DRIVE_REMOVABLE:
-			{
-				_r_listview_setitem (hwnd, IDC_DRIVES, j, 2, L"Removable");
-				break;
-			}
+		context->drive_status = _app_getdrivestatus (&context->drive->sr);
 
-			case DRIVE_FIXED:
-			{
-				_r_listview_setitem (hwnd, IDC_DRIVES, j, 2, L"Local");
-				break;
-			}
-
-			case DRIVE_REMOTE:
-			{
-				_r_listview_setitem (hwnd, IDC_DRIVES, j, 2, L"Network");
-				break;
-			}
-
-			case DRIVE_CDROM:
-			{
-				_r_listview_setitem (hwnd, IDC_DRIVES, j, 2, L"CD-ROM");
-				break;
-			}
-
-			default:
-			{
-				_r_listview_setitem (hwnd, IDC_DRIVES, j, 2, L"Unknown");
-				break;
-			}
-		}
-
-		_r_listview_setitem (hwnd, IDC_DRIVES, j, 4, buffer);
-
-		switch (status)
+		switch (context->drive_status)
 		{
 			case DS_PROTECTED:
 			{
@@ -280,6 +362,8 @@ VOID _app_refreshdrives (
 			}
 		}
 
+		context->icon_id = _app_getdriveimage (context->drive_status);
+
 		j += 1;
 	}
 
@@ -289,12 +373,6 @@ VOID _app_refreshdrives (
 	_r_status_settextformat (hwnd, IDC_STATUSBAR, 3, L"%s: %d", _r_locale_getstring (IDS_LOCKEDDRIVES), locked_count);
 
 	_app_resizecolumns (hwnd);
-
-	if (label)
-		_r_obj_dereference (label);
-
-	if (file_system)
-		_r_obj_dereference (file_system);
 }
 
 NTSTATUS _app_protectdrive (
@@ -303,23 +381,25 @@ NTSTATUS _app_protectdrive (
 )
 {
 	HANDLE hfile;
-	WCHAR buffer[64];
+	PR_STRING path;
 	WCHAR random[9];
 	NTSTATUS status;
 
-	_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"\\\\.\\%C:\\autorun.inf", drive[0]);
+	path = _r_format_string (L"\\\\.\\%C:\\autorun.inf", drive[0]);
 
-	status = _r_fs_createdirectory (buffer, FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_READONLY | FILE_ATTRIBUTE_SYSTEM);
+	status = _r_fs_createdirectory (&path->sr);
 
 	if (!NT_SUCCESS (status) && status != STATUS_OBJECT_NAME_COLLISION)
 		return status;
 
+	_r_fs_setattributes (NULL, &path->sr, FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_READONLY | FILE_ATTRIBUTE_SYSTEM);
+
 	_r_str_generaterandom (random, RTL_NUMBER_OF (random), TRUE);
 
-	_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"\\\\.\\%C:\\autorun.inf\\%s.", drive[0], random);
+	_r_obj_movereference (&path, _r_format_string (L"\\\\.\\%C:\\autorun.inf\\%s.", drive[0], random));
 
 	status = _r_fs_createfile (
-		buffer,
+		&path->sr,
 		FILE_OVERWRITE_IF,
 		GENERIC_WRITE,
 		FILE_SHARE_WRITE,
@@ -332,6 +412,8 @@ NTSTATUS _app_protectdrive (
 
 	if (NT_SUCCESS (status))
 		NtClose (hfile);
+
+	_r_obj_dereference (path);
 
 	return status;
 }
@@ -346,17 +428,17 @@ NTSTATUS _app_unprotectdrive (
 
 	autorun_file = _r_format_string (L"%C:\\autorun.inf", drive[0]);
 
-	_r_fs_setattributes (NULL, autorun_file->buffer, FILE_ATTRIBUTE_NORMAL);
+	_r_fs_setattributes (NULL, &autorun_file->sr, FILE_ATTRIBUTE_NORMAL);
 
 	if (NT_SUCCESS (status))
 	{
 		if (_r_fs_isdirectory (&autorun_file->sr))
 		{
-			status = _r_fs_deletedirectory (autorun_file->buffer, TRUE);
+			status = _r_fs_deletedirectory (&autorun_file->sr, TRUE);
 		}
 		else
 		{
-			status = _r_fs_deletefile (autorun_file->buffer, NULL);
+			status = _r_fs_deletefile (&autorun_file->sr, NULL);
 		}
 	}
 
@@ -367,20 +449,20 @@ NTSTATUS _app_unprotectdrive (
 }
 
 NTSTATUS _app_lockdrive (
-	_In_ LPWSTR drive
+	_In_ PR_STRINGREF drive
 )
 {
-	WCHAR buffer[64];
+	PR_STRING path;
 	HANDLE hdevice;
 	ULONG_PTR i;
 	NTSTATUS status;
 
-	_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"\\\\.\\%C:", drive[0]);
+	path = _r_format_string (L"\\\\.\\%C:", drive->buffer[0]);
 
-	status = _r_fs_openfile (buffer, FILE_GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, FALSE, &hdevice);
+	status = _r_fs_openfile (&path->sr, FILE_GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, FALSE, &hdevice);
 
 	if (!NT_SUCCESS (status))
-		return status;
+		goto CleanupExit;
 
 	i = _app_getdrivenumber (drive);
 
@@ -399,11 +481,15 @@ NTSTATUS _app_lockdrive (
 		NtClose (hdevice);
 	}
 
+CleanupExit:
+
+	_r_obj_dereference (path);
+
 	return status;
 }
 
 NTSTATUS _app_unlockdrive (
-	_In_ LPWSTR drive
+	_In_ PR_STRINGREF drive
 )
 {
 	ULONG_PTR drive_number;
@@ -427,16 +513,18 @@ VOID _app_unlockalldrives (
 	_In_ HWND hwnd
 )
 {
-	WCHAR buffer[64];
+	PR_STRING path;
 
 	for (INT i = 0; i < PR_DEVICE_COUNT; i++)
 	{
 		if (!dl[i].hdrive)
 			continue;
 
-		_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"%C:\\", i + 65);
+		path = _r_format_string (L"%C:\\", i + 65);
 
-		_app_unlockdrive (buffer);
+		_app_unlockdrive (&path->sr);
+
+		_r_obj_dereference (path);
 
 		break;
 	}
@@ -445,25 +533,29 @@ VOID _app_unlockalldrives (
 }
 
 NTSTATUS _app_ejectdrive (
-	_In_ LPCWSTR drive
+	_In_ PR_STRINGREF drive
 )
 {
-	WCHAR buffer[64];
+	PR_STRING path;
 	HANDLE hdevice;
 	NTSTATUS status;
 
-	_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"\\\\.\\%C:", drive[0]);
+	path = _r_format_string (L"\\\\.\\%C:", drive->buffer[0]);
 
-	status = _r_fs_openfile (buffer, FILE_GENERIC_READ | FILE_GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, FILE_WRITE_THROUGH, FALSE, &hdevice);
+	status = _r_fs_openfile (&path->sr, FILE_GENERIC_READ | FILE_GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, FILE_WRITE_THROUGH, FALSE, &hdevice);
 
 	if (!NT_SUCCESS (status))
-		return status;
+		goto CleanupExit;
 
 	_r_fs_flushfile (hdevice);
 
 	status = _r_fs_deviceiocontrol (hdevice, IOCTL_DISK_EJECT_MEDIA, NULL, 0, NULL, 0, NULL);
 
 	NtClose (hdevice);
+
+CleanupExit:
+
+	_r_obj_dereference (path);
 
 	return status;
 }
@@ -474,7 +566,6 @@ VOID _app_refreshdriveinfo (
 )
 {
 	WCHAR buffer[64];
-	WCHAR status[64];
 	PR_STRING label;
 	PR_STRING file_system;
 	LARGE_INTEGER total_space;
@@ -482,26 +573,49 @@ VOID _app_refreshdriveinfo (
 	ULONG_PTR drive_number;
 	ULONG serial_number;
 
-	if (!_app_driveisready (drive->buffer))
+	if (!_app_driveisready (&drive->sr))
 	{
-		_r_listview_fillitems (hwnd, IDC_PROPERTIES, -1, -1, 1, L"n/a", I_IMAGENONE);
+		_r_listview_fillitems (hwnd, IDC_PROPERTIES, -1, -1, 1, L"n/a", I_DEFAULT);
 
 		return;
 	}
 
-	drive_number = _app_getdrivenumber (drive->buffer);
+	drive_number = _app_getdrivenumber (&drive->sr);
 
-	_r_listview_setitem (hwnd, IDC_PROPERTIES, 0, 1, drive->buffer);
+	_r_listview_setitem (hwnd, IDC_PROPERTIES, 0, 1, drive->buffer, I_DEFAULT, I_DEFAULT, I_DEFAULT);
 
-	_app_getdrivestatus (drive->buffer, status, RTL_NUMBER_OF (status));
-
-	_r_listview_setitem (hwnd, IDC_PROPERTIES, 1, 1, status);
-
-	if (!_app_driveislocked (drive->buffer))
+	switch (_app_getdrivestatus (&drive->sr))
 	{
-		_r_fs_getdiskinformation (NULL, drive->buffer, &label, &file_system, NULL, &serial_number);
+		case DS_NORMAL:
+		{
+			_r_listview_setitem (hwnd, IDC_PROPERTIES, 1, 1, L"Normal", I_DEFAULT, I_DEFAULT, I_DEFAULT);
+			break;
+		}
 
-		_r_fs_getdiskspace (NULL, drive->buffer, &free_space, &total_space);
+		case DS_PROTECTED:
+		{
+			_r_listview_setitem (hwnd, IDC_PROPERTIES, 1, 1, L"Protected", I_DEFAULT, I_DEFAULT, I_DEFAULT);
+			break;
+		}
+
+		case DS_INFECTED:
+		{
+			_r_listview_setitem (hwnd, IDC_PROPERTIES, 1, 1, L"Infected", I_DEFAULT, I_DEFAULT, I_DEFAULT);
+			break;
+		}
+
+		case DS_LOCKED:
+		{
+			_r_listview_setitem (hwnd, IDC_PROPERTIES, 1, 1, L"Locked", I_DEFAULT, I_DEFAULT, I_DEFAULT);
+			break;
+		}
+	}
+
+	if (!_app_driveislocked (&drive->sr))
+	{
+		_r_fs_getdiskinformation (NULL, &drive->sr, &label, &file_system, NULL, &serial_number);
+
+		_r_fs_getdiskspace (NULL, &drive->sr, &free_space, &total_space);
 	}
 	else
 	{
@@ -514,54 +628,54 @@ VOID _app_refreshdriveinfo (
 		free_space = dl[drive_number].free_space;
 	}
 
-	_r_listview_setitem (hwnd, IDC_PROPERTIES, 2, 1, _app_driveislocked (drive->buffer) ? dl[drive_number].label->buffer : _r_obj_getstringordefault (label, L"<empty>"));
+	_r_listview_setitem (hwnd, IDC_PROPERTIES, 2, 1, _r_obj_getstringordefault (_app_driveislocked (&drive->sr) ? dl[drive_number].label : label, L"<empty>"), I_DEFAULT, I_DEFAULT, I_DEFAULT);
 
 	switch (GetDriveTypeW (drive->buffer))
 	{
 		case DRIVE_REMOVABLE:
 		{
-			_r_listview_setitem (hwnd, IDC_PROPERTIES, 3, 1, L"Removable");
+			_r_listview_setitem (hwnd, IDC_PROPERTIES, 3, 1, L"Removable", I_DEFAULT, I_DEFAULT, I_DEFAULT);
 			break;
 		}
 
 		case DRIVE_FIXED:
 		{
-			_r_listview_setitem (hwnd, IDC_PROPERTIES, 3, 1, L"Local");
+			_r_listview_setitem (hwnd, IDC_PROPERTIES, 3, 1, L"Local", I_DEFAULT, I_DEFAULT, I_DEFAULT);
 			break;
 		}
 
 		case DRIVE_REMOTE:
 		{
-			_r_listview_setitem (hwnd, IDC_PROPERTIES, 3, 1, L"Network");
+			_r_listview_setitem (hwnd, IDC_PROPERTIES, 3, 1, L"Network", I_DEFAULT, I_DEFAULT, I_DEFAULT);
 			break;
 		}
 
 		case DRIVE_CDROM:
 		{
-			_r_listview_setitem (hwnd, IDC_PROPERTIES, 3, 1, L"CD-ROM");
+			_r_listview_setitem (hwnd, IDC_PROPERTIES, 3, 1, L"CD-ROM", I_DEFAULT, I_DEFAULT, I_DEFAULT);
 			break;
 		}
 
 		default:
 		{
-			_r_listview_setitem (hwnd, IDC_PROPERTIES, 3, 1, L"n/a");
+			_r_listview_setitem (hwnd, IDC_PROPERTIES, 3, 1, L"n/a", I_DEFAULT, I_DEFAULT, I_DEFAULT);
 			break;
 		}
 	}
 
-	_r_listview_setitem (hwnd, IDC_PROPERTIES, 4, 1, _app_driveislocked (drive->buffer) ? dl[drive_number].file_system->buffer : _r_obj_getstringordefault (file_system, L"<unknown>"));
+	_r_listview_setitem (hwnd, IDC_PROPERTIES, 4, 1, _r_obj_getstringordefault (_app_driveislocked (&drive->sr) ? dl[drive_number].file_system : file_system, L"<unknown>"), I_DEFAULT, I_DEFAULT, I_DEFAULT);
 	_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"%" TEXT (PR_ULONG) " (%04X-%04X)", serial_number, HIWORD (serial_number), LOWORD (serial_number));
 
-	_r_listview_setitem (hwnd, IDC_PROPERTIES, 5, 1, buffer);
+	_r_listview_setitem (hwnd, IDC_PROPERTIES, 5, 1, buffer, I_DEFAULT, I_DEFAULT, I_DEFAULT);
 
 	_r_format_bytesize64 (buffer, RTL_NUMBER_OF (buffer), free_space.QuadPart);
-	_r_listview_setitem (hwnd, IDC_PROPERTIES, 6, 1, buffer);
+	_r_listview_setitem (hwnd, IDC_PROPERTIES, 6, 1, buffer, I_DEFAULT, I_DEFAULT, I_DEFAULT);
 
 	_r_format_bytesize64 (buffer, RTL_NUMBER_OF (buffer), total_space.QuadPart - free_space.QuadPart);
-	_r_listview_setitem (hwnd, IDC_PROPERTIES, 7, 1, buffer);
+	_r_listview_setitem (hwnd, IDC_PROPERTIES, 7, 1, buffer, I_DEFAULT, I_DEFAULT, I_DEFAULT);
 
 	_r_format_bytesize64 (buffer, RTL_NUMBER_OF (buffer), total_space.QuadPart);
-	_r_listview_setitem (hwnd, IDC_PROPERTIES, 8, 1, buffer);
+	_r_listview_setitem (hwnd, IDC_PROPERTIES, 8, 1, buffer, I_DEFAULT, I_DEFAULT, I_DEFAULT);
 
 	if (label)
 		_r_obj_dereference (label);
@@ -595,16 +709,16 @@ INT_PTR CALLBACK PropertiesDlgProc (
 			_r_listview_addgroup (hwnd, IDC_PROPERTIES, 0, _r_locale_getstring (IDS_GROUP1), 0, LVGS_COLLAPSIBLE, LVGS_COLLAPSIBLE);
 			_r_listview_addgroup (hwnd, IDC_PROPERTIES, 1, _r_locale_getstring (IDS_GROUP2), 0, LVGS_COLLAPSIBLE, LVGS_COLLAPSIBLE);
 
-			_r_listview_additem_ex (hwnd, IDC_PROPERTIES, 0, _r_locale_getstring (IDS_DRIVE), I_IMAGENONE, 0, 0);
-			_r_listview_additem_ex (hwnd, IDC_PROPERTIES, 1, _r_locale_getstring (IDS_STATUS), I_IMAGENONE, 0, 0);
-			_r_listview_additem_ex (hwnd, IDC_PROPERTIES, 2, _r_locale_getstring (IDS_LABEL), I_IMAGENONE, 0, 0);
-			_r_listview_additem_ex (hwnd, IDC_PROPERTIES, 3, _r_locale_getstring (IDS_TYPE), I_IMAGENONE, 0, 0);
-			_r_listview_additem_ex (hwnd, IDC_PROPERTIES, 4, _r_locale_getstring (IDS_FILESYSTEM), I_IMAGENONE, 0, 0);
-			_r_listview_additem_ex (hwnd, IDC_PROPERTIES, 5, _r_locale_getstring (IDS_SERIAL), I_IMAGENONE, 0, 0);
+			_r_listview_additem (hwnd, IDC_PROPERTIES, 0, _r_locale_getstring (IDS_DRIVE), I_DEFAULT, 0, I_DEFAULT);
+			_r_listview_additem (hwnd, IDC_PROPERTIES, 1, _r_locale_getstring (IDS_STATUS), I_DEFAULT, 0, I_DEFAULT);
+			_r_listview_additem (hwnd, IDC_PROPERTIES, 2, _r_locale_getstring (IDS_LABEL), I_DEFAULT, 0, I_DEFAULT);
+			_r_listview_additem (hwnd, IDC_PROPERTIES, 3, _r_locale_getstring (IDS_TYPE), I_DEFAULT, 0, I_DEFAULT);
+			_r_listview_additem (hwnd, IDC_PROPERTIES, 4, _r_locale_getstring (IDS_FILESYSTEM), I_DEFAULT, 0, I_DEFAULT);
+			_r_listview_additem (hwnd, IDC_PROPERTIES, 5, _r_locale_getstring (IDS_SERIAL), I_DEFAULT, 0, I_DEFAULT);
 
-			_r_listview_additem_ex (hwnd, IDC_PROPERTIES, 6, _r_locale_getstring (IDS_FREESPACE), I_IMAGENONE, 1, 0);
-			_r_listview_additem_ex (hwnd, IDC_PROPERTIES, 7, _r_locale_getstring (IDS_USEDSPACE), I_IMAGENONE, 1, 0);
-			_r_listview_additem_ex (hwnd, IDC_PROPERTIES, 8, _r_locale_getstring (IDS_TOTALSPACE), I_IMAGENONE, 1, 0);
+			_r_listview_additem (hwnd, IDC_PROPERTIES, 6, _r_locale_getstring (IDS_FREESPACE), I_DEFAULT, 1, I_DEFAULT);
+			_r_listview_additem (hwnd, IDC_PROPERTIES, 7, _r_locale_getstring (IDS_USEDSPACE), I_DEFAULT, 1, I_DEFAULT);
+			_r_listview_additem (hwnd, IDC_PROPERTIES, 8, _r_locale_getstring (IDS_TOTALSPACE), I_DEFAULT, 1, I_DEFAULT);
 
 			drive = (PR_STRING)lparam;
 
@@ -935,6 +1049,17 @@ LRESULT CALLBACK DlgProc
 
 					break;
 				}
+
+				case LVN_GETDISPINFO:
+				{
+					LPNMLVDISPINFOW lpnmlv;
+
+					lpnmlv = (LPNMLVDISPINFOW)lparam;
+
+					_app_displayinfo_callback (lpnmlv);
+
+					break;
+				}
 			}
 
 			break;
@@ -1049,7 +1174,7 @@ LRESULT CALLBACK DlgProc
 						if (!string)
 							continue;
 
-						if (!_app_driveislocked (string->buffer))
+						if (!_app_driveislocked (&string->sr))
 							_r_shell_showfile (&string->sr);
 
 						_r_obj_dereference (string);
@@ -1138,7 +1263,7 @@ LRESULT CALLBACK DlgProc
 						if (!string)
 							continue;
 
-						status = _app_lockdrive (string->buffer);
+						status = _app_lockdrive (&string->sr);
 
 						if (!NT_SUCCESS (status))
 							_r_show_errormessage (hwnd, NULL, status, string->buffer, TRUE);
@@ -1167,7 +1292,7 @@ LRESULT CALLBACK DlgProc
 						if (!string)
 							continue;
 
-						status = _app_unlockdrive (string->buffer);
+						status = _app_unlockdrive (&string->sr);
 
 						if (!NT_SUCCESS (status))
 							_r_show_errormessage (hwnd, NULL, status, string->buffer, TRUE);
@@ -1182,7 +1307,7 @@ LRESULT CALLBACK DlgProc
 
 				case IDM_UNLOCK_ALL:
 				{
-					if (_r_show_confirmmessage (hwnd, NULL, L"Are you sure you want to unlock all drives?", NULL))
+					if (_r_show_confirmmessage (hwnd, L"Are you sure you want to unlock all drives?", NULL, NULL, FALSE))
 						_app_unlockalldrives (hwnd);
 
 					break;
@@ -1204,7 +1329,7 @@ LRESULT CALLBACK DlgProc
 						if (!string)
 							continue;
 
-						status = _app_ejectdrive (string->buffer);
+						status = _app_ejectdrive (&string->sr);
 
 						if (!NT_SUCCESS (status))
 							_r_show_errormessage (hwnd, NULL, status, string->buffer, TRUE);
@@ -1236,7 +1361,7 @@ LRESULT CALLBACK DlgProc
 					if (!string)
 						break;
 
-					drive_number = _app_getdrivenumber (string->buffer);
+					drive_number = _app_getdrivenumber (&string->sr);
 
 					SHFormatDrive (hwnd, (INT)drive_number, SHFMT_ID_DEFAULT, 0);
 
@@ -1265,7 +1390,7 @@ LRESULT CALLBACK DlgProc
 					if (!string)
 						break;
 
-					if (!_app_driveislocked (string->buffer))
+					if (!_app_driveislocked (&string->sr))
 						DialogBoxParamW (NULL, MAKEINTRESOURCEW (IDD_PROPERTIES), hwnd, &PropertiesDlgProc, (LPARAM)string);
 
 					_r_obj_dereference (string);
