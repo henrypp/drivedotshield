@@ -12,4 +12,4 @@ System requirements:
 Website: https://github.com/henrypp
 Support: sforce5@mail.ru
 
-(c) 2012-2024 Henry++
+(c) 2012-2025 Henry++
