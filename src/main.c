@@ -273,9 +273,9 @@ VOID _app_setstatusparts (
 
 	width = _r_ctrl_getwidth (hwnd, 0);
 
-	parts[0] = _r_calc_percentval (25, width);
-	parts[1] = _r_calc_percentval (50, width);
-	parts[2] = _r_calc_percentval (75, width);
+	parts[0] = PR_CALC_PERCENTVAL (25, width);
+	parts[1] = PR_CALC_PERCENTVAL (50, width);
+	parts[2] = PR_CALC_PERCENTVAL (75, width);
 	parts[3] = -1;
 
 	_r_status_setparts (hwnd, IDC_STATUSBAR, parts, RTL_NUMBER_OF (parts));
@@ -895,7 +895,7 @@ LRESULT CALLBACK DlgProc
 
 			if (hmenu)
 			{
-				_r_menu_checkitem (hmenu, IDM_ALWAYSONTOP_CHK, 0, MF_BYCOMMAND, _r_config_getboolean (L"AlwaysOnTop", FALSE));
+				_r_menu_checkitem (hmenu, IDM_ALWAYSONTOP_CHK, 0, MF_BYCOMMAND, _r_config_getboolean (L"AlwaysOnTop", FALSE, NULL));
 				_r_menu_checkitem (hmenu, IDM_DARKMODE_CHK, 0, MF_BYCOMMAND, _r_theme_isenabled ());
 				_r_menu_checkitem (hmenu, IDM_CHECKUPDATES_CHK, 0, MF_BYCOMMAND, _r_update_isenabled (FALSE));
 			}
@@ -1106,10 +1106,10 @@ LRESULT CALLBACK DlgProc
 				{
 					BOOLEAN new_val;
 
-					new_val = !_r_config_getboolean (L"AlwaysOnTop", FALSE);
+					new_val = !_r_config_getboolean (L"AlwaysOnTop", FALSE, NULL);
 
 					_r_menu_checkitem (GetMenu (hwnd), ctrl_id, 0, MF_BYCOMMAND, new_val);
-					_r_config_setboolean (L"AlwaysOnTop", new_val);
+					_r_config_setboolean (L"AlwaysOnTop", new_val, NULL);
 
 					_r_wnd_top (hwnd, new_val);
 
