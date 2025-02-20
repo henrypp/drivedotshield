@@ -24,6 +24,7 @@ To activate portable mode, create "drivedotshield.ini" in application folder, or
 ### System requirements:
 - Windows 7, 8, 8.1, 10, 11 32-bit/64-bit/ARM64
 - An SSE2-capable CPU
+- <s>KB2533623</s> KB3063858 update for Windows 7 was required [[x64](https://www.microsoft.com/en-us/download/details.aspx?id=47442) / [x32](https://www.microsoft.com/en-us/download/details.aspx?id=47409)]
 
 ### Donate:
 - [Bitcoin](https://www.blockchain.com/btc/address/1LrRTXPsvHcQWCNZotA9RcwjsGcRghG96c) (BTC)
@@ -37,8 +38,8 @@ Binaries have GPG signature `drivedotshield.exe.sig` in application folder.
 - Public key: [pubkey.asc](https://raw.githubusercontent.com/henrypp/builder/master/pubkey.asc) ([pgpkeys.eu](https://pgpkeys.eu/pks/lookup?op=index&fingerprint=on&search=0x5635B5FD))
 - Key ID: 0x5635B5FD
 - Fingerprint: D985 2361 1524 AB29 BE73 30AC 2881 20A7 5635 B5FD
-
+---
 - Website: [github.com/henrypp](https://github.com/henrypp)
 - Support: sforce5@mail.ru
-<br />
+---
 (c) 2012-2025 Henry++
