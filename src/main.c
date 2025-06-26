@@ -724,7 +724,7 @@ INT_PTR CALLBACK PropertiesDlgProc (
 
 			_app_refreshdriveinfo (hwnd, drive);
 
-			_r_theme_initialize (hwnd, _r_theme_isenabled ());
+			_r_theme_initialize (hwnd);
 
 			break;
 		}
