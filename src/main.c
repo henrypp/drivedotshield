@@ -62,7 +62,7 @@ DRIVE_STATUS _app_getdrivestatus (
 
 	path = _r_format_string (L"%C:\\autorun.inf", drive->buffer[0]);
 
-	if (_r_fs_exists (&path->sr))
+	if (_r_fs_isexists (&path->sr))
 	{
 		if (_r_fs_isdirectory (&path->sr))
 		{
@@ -566,8 +566,8 @@ VOID _app_refreshdriveinfo (
 )
 {
 	WCHAR buffer[64];
-	PR_STRING label;
-	PR_STRING file_system;
+	PR_STRING file_system = NULL;
+	PR_STRING label = NULL;
 	LARGE_INTEGER total_space;
 	LARGE_INTEGER free_space;
 	ULONG_PTR drive_number;
@@ -620,7 +620,7 @@ VOID _app_refreshdriveinfo (
 	else
 	{
 		label = _r_obj_createstring (L"unknown");
-		file_system = _r_obj_reference (label);
+		file_system = _r_obj_createstring (L"unknown");
 
 		serial_number = dl[drive_number].serial_number;
 
@@ -677,11 +677,11 @@ VOID _app_refreshdriveinfo (
 	_r_format_bytesize64 (buffer, RTL_NUMBER_OF (buffer), total_space.QuadPart);
 	_r_listview_setitem (hwnd, IDC_PROPERTIES, 8, 1, buffer, I_DEFAULT, I_DEFAULT, I_DEFAULT);
 
-	if (label)
-		_r_obj_dereference (label);
-
 	if (file_system)
 		_r_obj_dereference (file_system);
+
+	if (label)
+		_r_obj_dereference (label);
 }
 
 INT_PTR CALLBACK PropertiesDlgProc (
