@@ -1,5 +1,5 @@
 ﻿// Drive Dot Shield
-// Copyright (c) 2012-2025 Henry++
+// Copyright (c) 2012-2026 Henry++
 
 
 #include "routine.h"
@@ -38,7 +38,7 @@ ULONG_PTR _app_getdrivenumber (
 }
 
 BOOLEAN _app_driveislocked (
-	_In_ PR_STRINGREF drive
+	_In_ PCR_STRINGREF drive
 )
 {
 	ULONG_PTR i;
@@ -52,7 +52,7 @@ BOOLEAN _app_driveislocked (
 }
 
 DRIVE_STATUS _app_getdrivestatus (
-	_In_ PR_STRINGREF drive
+	_In_ PCR_STRINGREF drive
 )
 {
 	PR_STRING path;
@@ -199,7 +199,7 @@ VOID _app_displayinfo_callback (
 }
 
 BOOLEAN _app_driveisready (
-	_In_ PR_STRINGREF drive
+	_In_ PCR_STRINGREF drive
 )
 {
 	WCHAR buffer[64];
@@ -217,7 +217,7 @@ BOOLEAN _app_driveisready (
 	error_mode = SEM_FAILCRITICALERRORS;
 	NtSetInformationProcess (NtCurrentProcess (), ProcessDefaultHardErrorMode, &error_mode, sizeof (error_mode));
 
-	status = _r_fs_getdiskinformation (NULL, drive, NULL, NULL, NULL, NULL);
+	status = _r_fs_getdiskinformation (drive, NULL, NULL, NULL, NULL, NULL);
 
 	NtSetInformationProcess (NtCurrentProcess (), ProcessDefaultHardErrorMode, &old_error_mode, sizeof (old_error_mode));
 
@@ -334,7 +334,7 @@ VOID _app_refreshdrives (
 		}
 		else
 		{
-			_r_fs_getdiskinformation (NULL, &context->drive->sr, &context->label, &context->file_system, NULL, &dl[drive_number].serial_number);
+			_r_fs_getdiskinformation (&context->drive->sr, NULL, &context->label, &context->file_system, NULL, &dl[drive_number].serial_number);
 		}
 
 		context->drive_type = GetDriveTypeW (context->drive->buffer);
@@ -466,9 +466,9 @@ NTSTATUS _app_lockdrive (
 
 	i = _app_getdrivenumber (drive);
 
-	_r_fs_getdiskinformation (hdevice, NULL, &dl[i].label, &dl[i].file_system, NULL, &dl[i].serial_number);
+	_r_fs_getdiskinformation (NULL, hdevice, &dl[i].label, &dl[i].file_system, NULL, &dl[i].serial_number);
 
-	_r_fs_getdiskspace (hdevice, NULL, &dl[i].free_space, &dl[i].total_space);
+	_r_fs_getdiskspace (NULL, hdevice, &dl[i].free_space, &dl[i].total_space);
 
 	status = _r_fs_deviceiocontrol (hdevice, FSCTL_LOCK_VOLUME, NULL, 0, NULL, 0, NULL);
 
@@ -613,9 +613,9 @@ VOID _app_refreshdriveinfo (
 
 	if (!_app_driveislocked (&drive->sr))
 	{
-		_r_fs_getdiskinformation (NULL, &drive->sr, &label, &file_system, NULL, &serial_number);
+		_r_fs_getdiskinformation (&drive->sr, NULL, &label, &file_system, NULL, &serial_number);
 
-		_r_fs_getdiskspace (NULL, &drive->sr, &free_space, &total_space);
+		_r_fs_getdiskspace (&drive->sr, NULL, &free_space, &total_space);
 	}
 	else
 	{
