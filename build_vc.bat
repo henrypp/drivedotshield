@@ -20,9 +20,6 @@ goto end
 
 :start
 
-msbuild drivedotshield.sln -property:Configuration=Release -property:Platform=Win32 -verbosity:minimal
-if %ERRORLEVEL% neq 0 goto end
-
 msbuild drivedotshield.sln -property:Configuration=Release -property:Platform=x64 -verbosity:minimal
 if %ERRORLEVEL% neq 0 goto end
 
