@@ -8,6 +8,7 @@
 #include "resource.h"
 #include "app.h"
 
+#define LANG_SUBMENU 1
 #define LANG_MENU 4
 
 typedef enum _DRIVE_STATUS

@@ -212,14 +212,14 @@ BOOLEAN _app_driveisready (
 
 	_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"%C:\\", drive->buffer[0]);
 
-	NtQueryInformationProcess (NtCurrentProcess (), ProcessDefaultHardErrorMode, &old_error_mode, sizeof (old_error_mode), NULL);
+	NtQueryInformationProcess (NtCurrentProcess (), ProcessDefaultHardErrorMode, &old_error_mode, sizeof (ULONG), NULL);
 
 	error_mode = SEM_FAILCRITICALERRORS;
-	NtSetInformationProcess (NtCurrentProcess (), ProcessDefaultHardErrorMode, &error_mode, sizeof (error_mode));
+	NtSetInformationProcess (NtCurrentProcess (), ProcessDefaultHardErrorMode, &error_mode, sizeof (ULONG));
 
 	status = _r_fs_getdiskinformation (drive, NULL, NULL, NULL, NULL, NULL);
 
-	NtSetInformationProcess (NtCurrentProcess (), ProcessDefaultHardErrorMode, &old_error_mode, sizeof (old_error_mode));
+	NtSetInformationProcess (NtCurrentProcess (), ProcessDefaultHardErrorMode, &old_error_mode, sizeof (ULONG));
 
 	return NT_SUCCESS (status);
 }
@@ -264,7 +264,7 @@ VOID _app_resizecolumns (
 	_r_listview_setcolumn (hwnd, IDC_DRIVES, 4, NULL, -20);
 }
 
-VOID _app_setstatusparts (
+BOOLEAN _app_setstatusparts (
 	_In_ HWND hwnd
 )
 {
@@ -278,7 +278,7 @@ VOID _app_setstatusparts (
 	parts[2] = PR_CALC_PERCENTVAL (75, width);
 	parts[3] = -1;
 
-	_r_status_setparts (hwnd, IDC_STATUSBAR, parts, RTL_NUMBER_OF (parts));
+	return _r_status_setparts (hwnd, IDC_STATUSBAR, parts, RTL_NUMBER_OF (parts));
 }
 
 VOID _app_refreshdrives (
@@ -399,6 +399,7 @@ NTSTATUS _app_protectdrive (
 	_r_obj_movereference (&path, _r_format_string (L"\\\\.\\%C:\\autorun.inf\\%s.", drive[0], random));
 
 	status = _r_fs_createfile (
+		&hfile,
 		&path->sr,
 		FILE_OVERWRITE_IF,
 		GENERIC_WRITE,
@@ -406,8 +407,7 @@ NTSTATUS _app_protectdrive (
 		FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_READONLY | FILE_ATTRIBUTE_SYSTEM,
 		0,
 		FALSE,
-		NULL,
-		&hfile
+		NULL
 	);
 
 	if (NT_SUCCESS (status))
@@ -428,7 +428,7 @@ NTSTATUS _app_unprotectdrive (
 
 	autorun_file = _r_format_string (L"%C:\\autorun.inf", drive[0]);
 
-	_r_fs_setattributes (NULL, &autorun_file->sr, FILE_ATTRIBUTE_NORMAL);
+	_r_fs_setattributes (&autorun_file->sr, NULL, FILE_ATTRIBUTE_NORMAL);
 
 	if (NT_SUCCESS (status))
 	{
@@ -459,7 +459,7 @@ NTSTATUS _app_lockdrive (
 
 	path = _r_format_string (L"\\\\.\\%C:", drive->buffer[0]);
 
-	status = _r_fs_openfile (&path->sr, FILE_GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, FALSE, &hdevice);
+	status = _r_fs_openfile (&hdevice, &path->sr, FILE_GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, FALSE);
 
 	if (!NT_SUCCESS (status))
 		goto CleanupExit;
@@ -542,7 +542,7 @@ NTSTATUS _app_ejectdrive (
 
 	path = _r_format_string (L"\\\\.\\%C:", drive->buffer[0]);
 
-	status = _r_fs_openfile (&path->sr, FILE_GENERIC_READ | FILE_GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, FILE_WRITE_THROUGH, FALSE, &hdevice);
+	status = _r_fs_openfile (&hdevice, &path->sr, FILE_GENERIC_READ | FILE_GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, FILE_WRITE_THROUGH, FALSE);
 
 	if (!NT_SUCCESS (status))
 		goto CleanupExit;
@@ -663,7 +663,18 @@ VOID _app_refreshdriveinfo (
 		}
 	}
 
-	_r_listview_setitem (hwnd, IDC_PROPERTIES, 4, 1, _r_obj_getstringordefault (_app_driveislocked (&drive->sr) ? dl[drive_number].file_system : file_system, L"<unknown>"), I_DEFAULT, I_DEFAULT, I_DEFAULT);
+	_r_listview_setitem (
+		hwnd,
+		IDC_PROPERTIES,
+		4,
+		1,
+		_r_obj_getstringordefault (_app_driveislocked (&drive->sr) ? dl[drive_number].file_system : file_system,
+		L"<unknown>"),
+		I_DEFAULT,
+		I_DEFAULT,
+		I_DEFAULT
+	);
+
 	_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"%" TEXT (PR_ULONG) " (%04X-%04X)", serial_number, HIWORD (serial_number), LOWORD (serial_number));
 
 	_r_listview_setitem (hwnd, IDC_PROPERTIES, 5, 1, buffer, I_DEFAULT, I_DEFAULT, I_DEFAULT);
@@ -812,7 +823,7 @@ INT_PTR CALLBACK PropertiesDlgProc (
 					if (!_r_listview_getselectedcount (hwnd, IDC_PROPERTIES))
 						break;
 
-					_r_obj_initializestringbuilder (&sb, 256);
+					_r_obj_initializestringbuilder (&sb, 0x100);
 
 					while ((item_id = _r_listview_getnextselected (hwnd, IDC_PROPERTIES, item_id)) != -1)
 					{
@@ -882,9 +893,9 @@ LRESULT CALLBACK DlgProc
 
 			for (INT i = IDI_NORMAL, j = 0; i < (IDI_LOCKED + 1); i++, j++)
 			{
-				_r_sys_loadicon (_r_sys_getimagebase (), MAKEINTRESOURCEW (i), width, &hicon);
+				_r_sys_loadicon (&hicon, _r_sys_getimagebase (), MAKEINTRESOURCEW (i), width);
 
-				ImageList_ReplaceIcon (himglist, -1, hicon);
+				ImageList_ReplaceIcon (himglist, INT_ERROR, hicon);
 
 				_r_status_seticon (hwnd, IDC_STATUSBAR, j, ImageList_GetIcon (himglist, j, ILD_NORMAL));
 
@@ -927,12 +938,12 @@ LRESULT CALLBACK DlgProc
 				_r_menu_setitemtext (hmenu, IDM_ALWAYSONTOP_CHK, FALSE, _r_locale_getstring (IDS_ALWAYSONTOP_CHK));
 				_r_menu_setitemtext (hmenu, IDM_DARKMODE_CHK, FALSE, _r_locale_getstring (IDS_DARKMODE_CHK));
 				_r_menu_setitemtext (hmenu, IDM_CHECKUPDATES_CHK, FALSE, _r_locale_getstring (IDS_CHECKUPDATES_CHK));
-				_r_menu_setitemtextformat (GetSubMenu (hmenu, 1), LANG_MENU, TRUE, L"%s (Language)", _r_locale_getstring (IDS_LANGUAGE));
+				_r_menu_setitemtextformat (GetSubMenu (hmenu, LANG_SUBMENU), LANG_MENU, TRUE, L"%s (Language)", _r_locale_getstring (IDS_LANGUAGE));
 				_r_menu_setitemtext (hmenu, IDM_WEBSITE, FALSE, _r_locale_getstring (IDS_WEBSITE));
 				_r_menu_setitemtext (hmenu, IDM_CHECKUPDATES, FALSE, _r_locale_getstring (IDS_CHECKUPDATES));
 				_r_menu_setitemtextformat (hmenu, IDM_ABOUT, FALSE, L"%s\tF1", _r_locale_getstring (IDS_ABOUT));
 
-				_r_locale_enum (GetSubMenu (hmenu, 1), LANG_MENU, IDX_LANGUAGE); // enum localizations
+				_r_locale_enum (GetSubMenu (hmenu, LANG_SUBMENU), LANG_MENU, IDX_LANGUAGE); // enum localizations
 			}
 
 			_r_listview_setcolumn (hwnd, IDC_DRIVES, 0, _r_locale_getstring (IDS_DRIVE), 0);
@@ -980,7 +991,6 @@ LRESULT CALLBACK DlgProc
 
 		case WM_CLOSE:
 		{
-
 			DestroyWindow (hwnd);
 			break;
 		}
@@ -1001,7 +1011,7 @@ LRESULT CALLBACK DlgProc
 
 					lpnmlv = (LPNMITEMACTIVATE)lparam;
 
-					if (!nmlp->idFrom || lpnmlv->iItem == -1 || nmlp->idFrom != IDC_DRIVES)
+					if (!nmlp->idFrom || lpnmlv->iItem == INT_ERROR || nmlp->idFrom != IDC_DRIVES)
 						break;
 
 					// localize
@@ -1044,8 +1054,8 @@ LRESULT CALLBACK DlgProc
 
 					lpnmia = (LPNMITEMACTIVATE)lparam;
 
-					if (lpnmia->iItem != -1)
-						_r_wnd_sendmessage (hwnd, 0, WM_COMMAND, MAKELPARAM (IDM_OPEN, 0), 0);
+					if (lpnmia->iItem != INT_ERROR)
+						_r_ctrl_sendcommand (hwnd, IDM_OPEN, 0);
 
 					break;
 				}
@@ -1067,8 +1077,8 @@ LRESULT CALLBACK DlgProc
 
 		case WM_COMMAND:
 		{
-			INT ctrl_id = LOWORD (wparam);
 			INT notify_code = HIWORD (wparam);
+			INT ctrl_id = LOWORD (wparam);
 
 			if (notify_code == 0 && ctrl_id >= IDX_LANGUAGE && ctrl_id <= IDX_LANGUAGE + (INT)(_r_locale_getcount () + 1))
 			{
@@ -1079,7 +1089,7 @@ LRESULT CALLBACK DlgProc
 
 				if (hmenu)
 				{
-					hsubmenu = GetSubMenu (hmenu, 1);
+					hsubmenu = GetSubMenu (hmenu, LANG_SUBMENU);
 
 					if (hsubmenu)
 					{
@@ -1162,12 +1172,12 @@ LRESULT CALLBACK DlgProc
 				case IDM_OPEN:
 				{
 					PR_STRING string;
-					INT item_id = -1;
+					INT item_id = INT_ERROR;
 
 					if (!_r_listview_getselectedcount (hwnd, IDC_DRIVES))
 						break;
 
-					while ((item_id = _r_listview_getnextselected (hwnd, IDC_DRIVES, item_id)) != -1)
+					while ((item_id = _r_listview_getnextselected (hwnd, IDC_DRIVES, item_id)) != INT_ERROR)
 					{
 						string = _r_listview_getitemtext (hwnd, IDC_DRIVES, item_id, 0);
 
@@ -1192,13 +1202,13 @@ LRESULT CALLBACK DlgProc
 				case IDM_PROTECT:
 				{
 					PR_STRING string;
-					INT item_id = -1;
+					INT item_id = INT_ERROR;
 					NTSTATUS status;
 
 					if (!_r_listview_getselectedcount (hwnd, IDC_DRIVES))
 						break;
 
-					while ((item_id = _r_listview_getnextselected (hwnd, IDC_DRIVES, item_id)) != -1)
+					while ((item_id = _r_listview_getnextselected (hwnd, IDC_DRIVES, item_id)) != INT_ERROR)
 					{
 						string = _r_listview_getitemtext (hwnd, IDC_DRIVES, item_id, 0);
 
@@ -1221,13 +1231,13 @@ LRESULT CALLBACK DlgProc
 				case IDM_UNPROTECT:
 				{
 					PR_STRING string;
-					INT item_id = -1;
+					INT item_id = INT_ERROR;
 					NTSTATUS status;
 
 					if (!_r_listview_getselectedcount (hwnd, IDC_DRIVES))
 						break;
 
-					while ((item_id = _r_listview_getnextselected (hwnd, IDC_DRIVES, item_id)) != -1)
+					while ((item_id = _r_listview_getnextselected (hwnd, IDC_DRIVES, item_id)) != INT_ERROR)
 					{
 						string = _r_listview_getitemtext (hwnd, IDC_DRIVES, item_id, 0);
 
@@ -1250,13 +1260,13 @@ LRESULT CALLBACK DlgProc
 				case IDM_LOCK:
 				{
 					PR_STRING string;
-					INT item_id = -1;
+					INT item_id = INT_ERROR;
 					NTSTATUS status;
 
 					if (!_r_listview_getselectedcount (hwnd, IDC_DRIVES))
 						break;
 
-					while ((item_id = _r_listview_getnextselected (hwnd, IDC_DRIVES, item_id)) != -1)
+					while ((item_id = _r_listview_getnextselected (hwnd, IDC_DRIVES, item_id)) != INT_ERROR)
 					{
 						string = _r_listview_getitemtext (hwnd, IDC_DRIVES, item_id, 0);
 
@@ -1279,13 +1289,13 @@ LRESULT CALLBACK DlgProc
 				case IDM_UNLOCK:
 				{
 					PR_STRING string;
-					INT item_id = -1;
+					INT item_id = INT_ERROR;
 					NTSTATUS status;
 
 					if (!_r_listview_getselectedcount (hwnd, IDC_DRIVES))
 						break;
 
-					while ((item_id = _r_listview_getnextselected (hwnd, IDC_DRIVES, item_id)) != -1)
+					while ((item_id = _r_listview_getnextselected (hwnd, IDC_DRIVES, item_id)) != INT_ERROR)
 					{
 						string = _r_listview_getitemtext (hwnd, IDC_DRIVES, item_id, 0);
 
@@ -1316,13 +1326,13 @@ LRESULT CALLBACK DlgProc
 				case IDM_EJECT:
 				{
 					PR_STRING string;
-					INT item_id = -1;
+					INT item_id = INT_ERROR;
 					NTSTATUS status;
 
 					if (!_r_listview_getselectedcount (hwnd, IDC_DRIVES))
 						break;
 
-					while ((item_id = _r_listview_getnextselected (hwnd, IDC_DRIVES, item_id)) != -1)
+					while ((item_id = _r_listview_getnextselected (hwnd, IDC_DRIVES, item_id)) != INT_ERROR)
 					{
 						string = _r_listview_getitemtext (hwnd, IDC_DRIVES, item_id, 0);
 
@@ -1351,9 +1361,9 @@ LRESULT CALLBACK DlgProc
 					if (!_r_listview_getselectedcount (hwnd, IDC_DRIVES))
 						break;
 
-					item_id = _r_listview_getnextselected (hwnd, IDC_DRIVES, -1);
+					item_id = _r_listview_getnextselected (hwnd, IDC_DRIVES, INT_ERROR);
 
-					if (item_id == -1)
+					if (item_id == INT_ERROR)
 						break;
 
 					string = _r_listview_getitemtext (hwnd, IDC_DRIVES, item_id, 0);
@@ -1380,9 +1390,9 @@ LRESULT CALLBACK DlgProc
 					if (!_r_listview_getselectedcount (hwnd, IDC_DRIVES))
 						break;
 
-					item_id = _r_listview_getnextselected (hwnd, IDC_DRIVES, -1);
+					item_id = _r_listview_getnextselected (hwnd, IDC_DRIVES, INT_ERROR);
 
-					if (item_id == -1)
+					if (item_id == INT_ERROR)
 						break;
 
 					string = _r_listview_getitemtext (hwnd, IDC_DRIVES, item_id, 0);
