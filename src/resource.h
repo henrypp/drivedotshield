@@ -10,7 +10,7 @@
 
 // Menus
 #define IDM_MAIN 100
-#define IDM_DRIVES 101
+#define IDM_LISTVIEW 101
 #define IDM_PROPERTIES 102
 
 // Dialogs
@@ -18,7 +18,7 @@
 #define IDD_PROPERTIES 101
 
 // Main Dlg
-#define IDC_DRIVES 103
+#define IDC_LISTVIEW 103
 #define IDC_STATUSBAR 104
 
 // Settings Dlg
