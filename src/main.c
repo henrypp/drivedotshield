@@ -18,7 +18,7 @@ VOID NTAPI _app_dereferencecontext (
 {
 	PITEM_CONTEXT ptr_item;
 
-	ptr_item = entry;
+	ptr_item = (PITEM_CONTEXT)entry;
 
 	if (ptr_item->file_system)
 		_r_obj_dereference (ptr_item->file_system);
@@ -31,7 +31,7 @@ VOID NTAPI _app_dereferencecontext (
 }
 
 ULONG_PTR _app_getdrivenumber (
-	_In_ PR_STRINGREF drive
+	_In_ PCR_STRINGREF drive
 )
 {
 	return (ULONG_PTR)(drive->buffer[0] - 65);
@@ -41,14 +41,9 @@ BOOLEAN _app_driveislocked (
 	_In_ PCR_STRINGREF drive
 )
 {
-	ULONG_PTR i;
+	ULONG_PTR index = _app_getdrivenumber (drive);
 
-	i = _app_getdrivenumber (drive);
-
-	if (dl[i].hdrive)
-		return TRUE;
-
-	return FALSE;
+	return (dl[index].hdrive) ? TRUE : FALSE;
 }
 
 DRIVE_STATUS _app_getdrivestatus (
@@ -95,7 +90,7 @@ VOID _app_displayinfo_callback (
 		return;
 
 	// set text
-	if (lpnmlv->item.mask & LVIF_TEXT)
+	if ((lpnmlv->item.mask & LVIF_TEXT) == LVIF_TEXT)
 	{
 		switch (lpnmlv->item.iSubItem)
 		{
@@ -194,7 +189,7 @@ VOID _app_displayinfo_callback (
 	}
 
 	// set image
-	if (lpnmlv->item.mask & LVIF_IMAGE)
+	if ((lpnmlv->item.mask & LVIF_IMAGE) == LVIF_IMAGE)
 		lpnmlv->item.iImage = context->icon_id;
 }
 
@@ -202,7 +197,7 @@ BOOLEAN _app_driveisready (
 	_In_ PCR_STRINGREF drive
 )
 {
-	WCHAR buffer[64];
+	WCHAR buffer[0x40];
 	ULONG old_error_mode = 0;
 	ULONG error_mode;
 	NTSTATUS status;
@@ -244,24 +239,23 @@ LONG _app_getdriveimage (
 		{
 			return 3;
 		}
-	}
 
-	return 0; // normal
+		default:
+		{
+			return 0; // normal
+		}
+	}
 }
 
 VOID _app_resizecolumns (
 	_In_ HWND hwnd
 )
 {
-	LONG dpi_value;
-
-	dpi_value = _r_dc_getwindowdpi (hwnd);
-
-	_r_listview_setcolumn (hwnd, IDC_DRIVES, 0, NULL, -10);
-	_r_listview_setcolumn (hwnd, IDC_DRIVES, 1, NULL, -30);
-	_r_listview_setcolumn (hwnd, IDC_DRIVES, 2, NULL, -20);
-	_r_listview_setcolumn (hwnd, IDC_DRIVES, 3, NULL, -20);
-	_r_listview_setcolumn (hwnd, IDC_DRIVES, 4, NULL, -20);
+	_r_listview_setcolumn (hwnd, IDC_LISTVIEW, 0, NULL, -10);
+	_r_listview_setcolumn (hwnd, IDC_LISTVIEW, 1, NULL, -30);
+	_r_listview_setcolumn (hwnd, IDC_LISTVIEW, 2, NULL, -20);
+	_r_listview_setcolumn (hwnd, IDC_LISTVIEW, 3, NULL, -20);
+	_r_listview_setcolumn (hwnd, IDC_LISTVIEW, 4, NULL, -20);
 }
 
 BOOLEAN _app_setstatusparts (
@@ -276,7 +270,7 @@ BOOLEAN _app_setstatusparts (
 	parts[0] = PR_CALC_PERCENTVAL (25, width);
 	parts[1] = PR_CALC_PERCENTVAL (50, width);
 	parts[2] = PR_CALC_PERCENTVAL (75, width);
-	parts[3] = -1;
+	parts[3] = INT_ERROR;
 
 	return _r_status_setparts (hwnd, IDC_STATUSBAR, parts, RTL_NUMBER_OF (parts));
 }
@@ -286,33 +280,34 @@ VOID _app_refreshdrives (
 )
 {
 	PITEM_CONTEXT context;
-	ULONG_PTR drive_number;
-	ULONG drives;
+	ULONG_PTR index;
 	LONG protected_count = 0;
 	LONG infected_count = 0;
 	LONG locked_count = 0;
-	LONG dpi_value;
-
-	dpi_value = _r_dc_getwindowdpi (hwnd);
+	ULONG drives;
+	NTSTATUS status;
 
 	_app_setstatusparts (hwnd);
 
-	_r_listview_setcolumn (hwnd, IDC_DRIVES, 0, NULL, _r_dc_getdpi (50, dpi_value));
-	_r_listview_setcolumn (hwnd, IDC_DRIVES, 1, NULL, _r_dc_getdpi (90, dpi_value));
-	_r_listview_setcolumn (hwnd, IDC_DRIVES, 2, NULL, _r_dc_getdpi (90, dpi_value));
-	_r_listview_setcolumn (hwnd, IDC_DRIVES, 3, NULL, _r_dc_getdpi (90, dpi_value));
-	_r_listview_setcolumn (hwnd, IDC_DRIVES, 4, NULL, _r_dc_getdpi (85, dpi_value));
+	_app_resizecolumns (hwnd);
 
-	_r_listview_deleteallitems (hwnd, IDC_DRIVES);
+	_r_listview_deleteallitems (hwnd, IDC_LISTVIEW);
 
-	_r_fs_getdisklist (&drives);
+	status = _r_fs_getdisklist (&drives);
+
+	if (!NT_SUCCESS (status))
+	{
+		_r_show_errormessage (hwnd, L"Could not get disk list!", status, NULL, ET_NATIVE);
+
+		return;
+	}
 
 	for (LONG i = 0, j = 0; i < PR_DEVICE_COUNT; i++)
 	{
 		if (!((drives >> i) & 0x00000001))
 			continue;
 
-		context = _r_obj_allocate (sizeof (ITEM_CONTEXT), &_app_dereferencecontext);
+		context = (PITEM_CONTEXT)_r_obj_allocate (sizeof (ITEM_CONTEXT), &_app_dereferencecontext);
 
 		context->drive = _r_format_string (L"%C:", (65 + i));
 
@@ -323,9 +318,7 @@ VOID _app_refreshdrives (
 			continue;
 		}
 
-		drive_number = _app_getdrivenumber (&context->drive->sr);
-
-		_r_listview_additem (hwnd, IDC_DRIVES, j, LPSTR_TEXTCALLBACK, I_IMAGECALLBACK, I_DEFAULT, (LPARAM)context);
+		_r_listview_additem (hwnd, IDC_LISTVIEW, j, LPSTR_TEXTCALLBACK, I_IMAGECALLBACK, I_DEFAULT, (LPARAM)context);
 
 		if (_app_driveislocked (&context->drive->sr))
 		{
@@ -334,7 +327,9 @@ VOID _app_refreshdrives (
 		}
 		else
 		{
-			_r_fs_getdiskinformation (&context->drive->sr, NULL, &context->label, &context->file_system, NULL, &dl[drive_number].serial_number);
+			index = _app_getdrivenumber (&context->drive->sr);
+
+			_r_fs_getdiskinformation (&context->drive->sr, NULL, &context->label, &context->file_system, NULL, &dl[index].serial_number);
 		}
 
 		context->drive_type = GetDriveTypeW (context->drive->buffer);
@@ -367,7 +362,7 @@ VOID _app_refreshdrives (
 		j += 1;
 	}
 
-	_r_status_settextformat (hwnd, IDC_STATUSBAR, 0, L"%s: %d", _r_locale_getstring (IDS_TOTALDRIVES), _r_listview_getitemcount (hwnd, IDC_DRIVES));
+	_r_status_settextformat (hwnd, IDC_STATUSBAR, 0, L"%s: %d", _r_locale_getstring (IDS_TOTALDRIVES), _r_listview_getitemcount (hwnd, IDC_LISTVIEW));
 	_r_status_settextformat (hwnd, IDC_STATUSBAR, 1, L"%s: %d", _r_locale_getstring (IDS_PROTECTEDDRIVES), protected_count);
 	_r_status_settextformat (hwnd, IDC_STATUSBAR, 2, L"%s: %d", _r_locale_getstring (IDS_INFECTEDDRIVES), infected_count);
 	_r_status_settextformat (hwnd, IDC_STATUSBAR, 3, L"%s: %d", _r_locale_getstring (IDS_LOCKEDDRIVES), locked_count);
@@ -390,7 +385,11 @@ NTSTATUS _app_protectdrive (
 	status = _r_fs_createdirectory (&path->sr);
 
 	if (!NT_SUCCESS (status) && status != STATUS_OBJECT_NAME_COLLISION)
+	{
+		_r_obj_dereference (path);
+
 		return status;
+	}
 
 	_r_fs_setattributes (NULL, &path->sr, FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_READONLY | FILE_ATTRIBUTE_SYSTEM);
 
@@ -411,7 +410,13 @@ NTSTATUS _app_protectdrive (
 	);
 
 	if (NT_SUCCESS (status))
+	{
+		_r_str_generaterandom (random, RTL_NUMBER_OF (random), TRUE);
+
+		_r_fs_writefile (hfile, random, sizeof (random));
+
 		NtClose (hfile);
+	}
 
 	_r_obj_dereference (path);
 
@@ -449,12 +454,12 @@ NTSTATUS _app_unprotectdrive (
 }
 
 NTSTATUS _app_lockdrive (
-	_In_ PR_STRINGREF drive
+	_In_ PCR_STRINGREF drive
 )
 {
 	PR_STRING path;
 	HANDLE hdevice;
-	ULONG_PTR i;
+	ULONG_PTR index;
 	NTSTATUS status;
 
 	path = _r_format_string (L"\\\\.\\%C:", drive->buffer[0]);
@@ -464,17 +469,17 @@ NTSTATUS _app_lockdrive (
 	if (!NT_SUCCESS (status))
 		goto CleanupExit;
 
-	i = _app_getdrivenumber (drive);
+	index = _app_getdrivenumber (drive);
 
-	_r_fs_getdiskinformation (NULL, hdevice, &dl[i].label, &dl[i].file_system, NULL, &dl[i].serial_number);
-
-	_r_fs_getdiskspace (NULL, hdevice, &dl[i].free_space, &dl[i].total_space);
+	// store data before locking!
+	_r_fs_getdiskinformation (NULL, hdevice, &dl[index].label, &dl[index].file_system, NULL, &dl[index].serial_number);
+	_r_fs_getdiskspace (NULL, hdevice, &dl[index].free_space, &dl[index].total_space);
 
 	status = _r_fs_deviceiocontrol (hdevice, FSCTL_LOCK_VOLUME, NULL, 0, NULL, 0, NULL);
 
 	if (NT_SUCCESS (status))
 	{
-		dl[i].hdrive = hdevice;
+		dl[index].hdrive = hdevice;
 	}
 	else
 	{
@@ -489,22 +494,22 @@ CleanupExit:
 }
 
 NTSTATUS _app_unlockdrive (
-	_In_ PR_STRINGREF drive
+	_In_ PCR_STRINGREF drive
 )
 {
-	ULONG_PTR drive_number;
+	ULONG_PTR index;
 	NTSTATUS status;
 
-	drive_number = _app_getdrivenumber (drive);
+	index = _app_getdrivenumber (drive);
 
-	if (!dl[drive_number].hdrive)
+	if (!dl[index].hdrive)
 		return STATUS_INVALID_HANDLE;
 
-	status = _r_fs_deviceiocontrol (dl[drive_number].hdrive, FSCTL_UNLOCK_VOLUME, NULL, 0, NULL, 0, NULL);
+	status = _r_fs_deviceiocontrol (dl[index].hdrive, FSCTL_UNLOCK_VOLUME, NULL, 0, NULL, 0, NULL);
 
-	NtClose (dl[drive_number].hdrive);
+	NtClose (dl[index].hdrive);
 
-	dl[drive_number].hdrive = NULL;
+	dl[index].hdrive = NULL;
 
 	return status;
 }
@@ -533,7 +538,7 @@ VOID _app_unlockalldrives (
 }
 
 NTSTATUS _app_ejectdrive (
-	_In_ PR_STRINGREF drive
+	_In_ PCR_STRINGREF drive
 )
 {
 	PR_STRING path;
@@ -565,22 +570,21 @@ VOID _app_refreshdriveinfo (
 	_In_ PR_STRING drive
 )
 {
-	WCHAR buffer[64];
+	WCHAR buffer[0x40];
 	PR_STRING file_system = NULL;
 	PR_STRING label = NULL;
 	LARGE_INTEGER total_space;
 	LARGE_INTEGER free_space;
-	ULONG_PTR drive_number;
+	ULONG_PTR index;
 	ULONG serial_number;
 
 	if (!_app_driveisready (&drive->sr))
 	{
-		_r_listview_fillitems (hwnd, IDC_PROPERTIES, -1, -1, 1, L"n/a", I_DEFAULT);
-
+		_r_listview_fillitems (hwnd, IDC_PROPERTIES, INT_ERROR, INT_ERROR, 1, L"n/a", I_DEFAULT);
 		return;
 	}
 
-	drive_number = _app_getdrivenumber (&drive->sr);
+	index = _app_getdrivenumber (&drive->sr);
 
 	_r_listview_setitem (hwnd, IDC_PROPERTIES, 0, 1, drive->buffer, I_DEFAULT, I_DEFAULT, I_DEFAULT);
 
@@ -614,21 +618,20 @@ VOID _app_refreshdriveinfo (
 	if (!_app_driveislocked (&drive->sr))
 	{
 		_r_fs_getdiskinformation (&drive->sr, NULL, &label, &file_system, NULL, &serial_number);
-
 		_r_fs_getdiskspace (&drive->sr, NULL, &free_space, &total_space);
 	}
 	else
 	{
-		label = _r_obj_createstring (L"unknown");
-		file_system = _r_obj_createstring (L"unknown");
+		label = _r_obj_createstring (L"<unknown>");
+		file_system = _r_obj_createstring (L"<unknown>");
 
-		serial_number = dl[drive_number].serial_number;
+		serial_number = dl[index].serial_number;
 
-		total_space = dl[drive_number].total_space;
-		free_space = dl[drive_number].free_space;
+		total_space = dl[index].total_space;
+		free_space = dl[index].free_space;
 	}
 
-	_r_listview_setitem (hwnd, IDC_PROPERTIES, 2, 1, _r_obj_getstringordefault (_app_driveislocked (&drive->sr) ? dl[drive_number].label : label, L"<empty>"), I_DEFAULT, I_DEFAULT, I_DEFAULT);
+	_r_listview_setitem (hwnd, IDC_PROPERTIES, 2, 1, _r_obj_getstringordefault (_app_driveislocked (&drive->sr) ? dl[index].label : label, L"<empty>"), I_DEFAULT, I_DEFAULT, I_DEFAULT);
 
 	switch (GetDriveTypeW (drive->buffer))
 	{
@@ -658,7 +661,7 @@ VOID _app_refreshdriveinfo (
 
 		default:
 		{
-			_r_listview_setitem (hwnd, IDC_PROPERTIES, 3, 1, L"n/a", I_DEFAULT, I_DEFAULT, I_DEFAULT);
+			_r_listview_setitem (hwnd, IDC_PROPERTIES, 3, 1, L"<unknown>", I_DEFAULT, I_DEFAULT, I_DEFAULT);
 			break;
 		}
 	}
@@ -668,7 +671,7 @@ VOID _app_refreshdriveinfo (
 		IDC_PROPERTIES,
 		4,
 		1,
-		_r_obj_getstringordefault (_app_driveislocked (&drive->sr) ? dl[drive_number].file_system : file_system,
+		_r_obj_getstringordefault (_app_driveislocked (&drive->sr) ? dl[index].file_system : file_system,
 		L"<unknown>"),
 		I_DEFAULT,
 		I_DEFAULT,
@@ -752,13 +755,13 @@ INT_PTR CALLBACK PropertiesDlgProc (
 
 		case WM_CONTEXTMENU:
 		{
-			HMENU hmenu;
 			HMENU hsubmenu;
+			HMENU hmenu;
 
 			if (GetDlgCtrlID ((HWND)wparam) != IDC_PROPERTIES)
 				break;
 
-			hmenu = LoadMenuW (NULL, MAKEINTRESOURCEW (IDM_PROPERTIES));
+			hmenu = LoadMenuW (_r_sys_getimagebase (), MAKEINTRESOURCE (IDM_PROPERTIES));
 
 			if (!hmenu)
 				break;
@@ -773,7 +776,7 @@ INT_PTR CALLBACK PropertiesDlgProc (
 				if (!_r_listview_getselectedcount (hwnd, IDC_PROPERTIES))
 					_r_menu_enableitem (hsubmenu, IDM_REFRESH, MF_BYCOMMAND, FALSE);
 
-				_r_menu_popup (hsubmenu, hwnd, NULL, TRUE);
+				_r_menu_popup (hsubmenu, hwnd, NULL, 0);
 			}
 
 			DestroyMenu (hmenu);
@@ -818,14 +821,14 @@ INT_PTR CALLBACK PropertiesDlgProc (
 				{
 					R_STRINGBUILDER sb;
 					PR_STRING string;
-					INT item_id = -1;
+					INT item_id = INT_ERROR;
 
 					if (!_r_listview_getselectedcount (hwnd, IDC_PROPERTIES))
 						break;
 
-					_r_obj_initializestringbuilder (&sb, 0x100);
+					_r_obj_initializestringbuilder (&sb, 0);
 
-					while ((item_id = _r_listview_getnextselected (hwnd, IDC_PROPERTIES, item_id)) != -1)
+					while ((item_id = _r_listview_getnextselected (hwnd, IDC_PROPERTIES, item_id)) != INT_ERROR)
 					{
 						string = _r_listview_getitemtext (hwnd, IDC_PROPERTIES, item_id, 1);
 
@@ -842,7 +845,8 @@ INT_PTR CALLBACK PropertiesDlgProc (
 
 					_r_str_trimstring2 (&string->sr, L"\r\n", 0);
 
-					_r_clipboard_set (hwnd, &string->sr);
+					if (!_r_obj_isstringempty2 (string))
+						_r_clipboard_set (hwnd, &string->sr);
 
 					_r_obj_deletestringbuilder (&sb);
 
@@ -875,31 +879,39 @@ LRESULT CALLBACK DlgProc
 			HICON hicon;
 			HMENU hmenu;
 			LONG width;
-			LONG dpi_value;
+			INT index;
+			HRESULT status;
 
-			_r_listview_setstyle (hwnd, IDC_DRIVES, LVS_EX_FULLROWSELECT | LVS_EX_INFOTIP | LVS_EX_DOUBLEBUFFER, FALSE);
+			_r_listview_setstyle (hwnd, IDC_LISTVIEW, LVS_EX_FULLROWSELECT | LVS_EX_INFOTIP | LVS_EX_LABELTIP | LVS_EX_DOUBLEBUFFER, FALSE);
 
-			dpi_value = _r_dc_getwindowdpi (hwnd);
+			_r_listview_addcolumn (hwnd, IDC_LISTVIEW, 0, _r_locale_getstring (IDS_DRIVE), -10, 0);
+			_r_listview_addcolumn (hwnd, IDC_LISTVIEW, 1, _r_locale_getstring (IDS_LABEL), -40, 0);
+			_r_listview_addcolumn (hwnd, IDC_LISTVIEW, 2, _r_locale_getstring (IDS_TYPE), -40, 0);
+			_r_listview_addcolumn (hwnd, IDC_LISTVIEW, 3, _r_locale_getstring (IDS_FILESYSTEM), -40, 0);
+			_r_listview_addcolumn (hwnd, IDC_LISTVIEW, 4, _r_locale_getstring (IDS_STATUS), -40, 0);
 
-			_r_listview_addcolumn (hwnd, IDC_DRIVES, 0, L"", -10, 0);
-			_r_listview_addcolumn (hwnd, IDC_DRIVES, 1, L"", -40, 0);
-			_r_listview_addcolumn (hwnd, IDC_DRIVES, 2, L"", -40, 0);
-			_r_listview_addcolumn (hwnd, IDC_DRIVES, 3, L"", -40, 0);
-			_r_listview_addcolumn (hwnd, IDC_DRIVES, 4, L"", -40, 0);
+			width = _r_dc_getsystemmetrics (SM_CXSMICON, _r_dc_getwindowdpi (hwnd));
 
-			width = _r_dc_getsystemmetrics (SM_CXSMICON, dpi_value);
+			status = _r_imagelist_create (&himglist, width, width, ILC_COLOR32, 0, 5);
 
-			himglist = ImageList_Create (width, width, ILC_COLOR32, 0, 5);
-
-			for (INT i = IDI_NORMAL, j = 0; i < (IDI_LOCKED + 1); i++, j++)
+			if (SUCCEEDED (status))
 			{
-				_r_sys_loadicon (&hicon, _r_sys_getimagebase (), MAKEINTRESOURCEW (i), width);
+				for (INT i = IDI_NORMAL, j = 0; i < (IDI_LOCKED + 1); i++, j++)
+				{
+					status = _r_sys_loadicon (&hicon, _r_sys_getimagebase (), MAKEINTRESOURCE (i), width);
 
-				ImageList_ReplaceIcon (himglist, INT_ERROR, hicon);
+					if (SUCCEEDED (status))
+					{
+						status = _r_imagelist_addicon (himglist, hicon, &index);
 
-				_r_status_seticon (hwnd, IDC_STATUSBAR, j, ImageList_GetIcon (himglist, j, ILD_NORMAL));
+						if (SUCCEEDED (status))
+							_r_status_seticon (hwnd, IDC_STATUSBAR, j, ImageList_GetIcon (himglist, index, ILD_NORMAL));
 
-				DestroyIcon (hicon);
+						DestroyIcon (hicon);
+					}
+				}
+
+				_r_listview_setimagelist (hwnd, IDC_LISTVIEW, himglist);
 			}
 
 			hmenu = GetMenu (hwnd);
@@ -910,8 +922,6 @@ LRESULT CALLBACK DlgProc
 				_r_menu_checkitem (hmenu, IDM_DARKMODE_CHK, 0, MF_BYCOMMAND, _r_theme_isenabled ());
 				_r_menu_checkitem (hmenu, IDM_CHECKUPDATES_CHK, 0, MF_BYCOMMAND, _r_update_isenabled (FALSE));
 			}
-
-			_r_wnd_sendmessage (hwnd, IDC_DRIVES, LVM_SETIMAGELIST, LVSIL_SMALL, (LPARAM)himglist);
 
 			_app_refreshdrives (hwnd);
 
@@ -946,11 +956,11 @@ LRESULT CALLBACK DlgProc
 				_r_locale_enum (GetSubMenu (hmenu, LANG_SUBMENU), LANG_MENU, IDX_LANGUAGE); // enum localizations
 			}
 
-			_r_listview_setcolumn (hwnd, IDC_DRIVES, 0, _r_locale_getstring (IDS_DRIVE), 0);
-			_r_listview_setcolumn (hwnd, IDC_DRIVES, 1, _r_locale_getstring (IDS_LABEL), 0);
-			_r_listview_setcolumn (hwnd, IDC_DRIVES, 2, _r_locale_getstring (IDS_TYPE), 0);
-			_r_listview_setcolumn (hwnd, IDC_DRIVES, 3, _r_locale_getstring (IDS_FILESYSTEM), 0);
-			_r_listview_setcolumn (hwnd, IDC_DRIVES, 4, _r_locale_getstring (IDS_STATUS), 0);
+			_r_listview_setcolumn (hwnd, IDC_LISTVIEW, 0, _r_locale_getstring (IDS_DRIVE), 0);
+			_r_listview_setcolumn (hwnd, IDC_LISTVIEW, 1, _r_locale_getstring (IDS_LABEL), 0);
+			_r_listview_setcolumn (hwnd, IDC_LISTVIEW, 2, _r_locale_getstring (IDS_TYPE), 0);
+			_r_listview_setcolumn (hwnd, IDC_LISTVIEW, 3, _r_locale_getstring (IDS_FILESYSTEM), 0);
+			_r_listview_setcolumn (hwnd, IDC_LISTVIEW, 4, _r_locale_getstring (IDS_STATUS), 0);
 
 			_app_refreshdrives (hwnd);
 
@@ -995,6 +1005,44 @@ LRESULT CALLBACK DlgProc
 			break;
 		}
 
+		case WM_CONTEXTMENU:
+		{
+			HMENU hsubmenu;
+			HMENU hmenu;
+
+			if (GetDlgCtrlID ((HWND)wparam) != IDC_LISTVIEW)
+				break;
+
+			hmenu = LoadMenuW (_r_sys_getimagebase (), MAKEINTRESOURCE (IDM_LISTVIEW));
+
+			if (!hmenu)
+				break;
+
+			hsubmenu = GetSubMenu (hmenu, 0);
+
+			if (hsubmenu)
+			{
+				_r_menu_setitemtext (hsubmenu, IDM_OPEN, FALSE, _r_locale_getstring (IDS_OPEN));
+				_r_menu_setitemtext (hsubmenu, IDM_PROTECT, FALSE, _r_locale_getstring (IDS_PROTECT));
+				_r_menu_setitemtext (hsubmenu, IDM_UNPROTECT, FALSE, _r_locale_getstring (IDS_UNPROTECT));
+				_r_menu_setitemtextformat (hsubmenu, IDM_REFRESH, FALSE, L"%s\tF5", _r_locale_getstring (IDS_REFRESH));
+				_r_menu_setitemtextformat (hsubmenu, IDM_COPY, FALSE, L"%s\tCtrl+C", _r_locale_getstring (IDS_COPY));
+				_r_menu_setitemtext (hsubmenu, 7, TRUE, _r_locale_getstring (IDS_SERVICE));
+				_r_menu_setitemtext (hsubmenu, IDM_LOCK, FALSE, _r_locale_getstring (IDS_LOCK));
+				_r_menu_setitemtext (hsubmenu, IDM_UNLOCK, FALSE, _r_locale_getstring (IDS_UNLOCK));
+				_r_menu_setitemtext (hsubmenu, IDM_UNLOCK_ALL, FALSE, _r_locale_getstring (IDS_UNLOCK_ALL));
+				_r_menu_setitemtext (hsubmenu, IDM_EJECT, FALSE, _r_locale_getstring (IDS_EJECT));
+				_r_menu_setitemtext (hsubmenu, IDM_FORMAT, FALSE, _r_locale_getstring (IDS_FORMAT));
+				_r_menu_setitemtext (hsubmenu, IDM_PROPERTY, FALSE, _r_locale_getstring (IDS_PROPERTIES));
+
+				_r_menu_popup (hsubmenu, hwnd, NULL, 0);
+			}
+
+			DestroyMenu (hmenu);
+
+			break;
+		}
+
 		case WM_NOTIFY:
 		{
 			LPNMHDR nmlp;
@@ -1003,59 +1051,17 @@ LRESULT CALLBACK DlgProc
 
 			switch (nmlp->code)
 			{
-				case NM_RCLICK:
-				{
-					LPNMITEMACTIVATE lpnmlv;
-					HMENU hsubmenu;
-					HMENU hmenu;
-
-					lpnmlv = (LPNMITEMACTIVATE)lparam;
-
-					if (!nmlp->idFrom || lpnmlv->iItem == INT_ERROR || nmlp->idFrom != IDC_DRIVES)
-						break;
-
-					// localize
-					hmenu = LoadMenuW (NULL, MAKEINTRESOURCEW (IDM_DRIVES));
-
-					if (!hmenu)
-						break;
-
-					hsubmenu = GetSubMenu (hmenu, 0);
-
-					if (hsubmenu)
-					{
-						_r_menu_setitemtext (hsubmenu, IDM_OPEN, FALSE, _r_locale_getstring (IDS_OPEN));
-						_r_menu_setitemtext (hsubmenu, IDM_PROTECT, FALSE, _r_locale_getstring (IDS_PROTECT));
-						_r_menu_setitemtext (hsubmenu, IDM_UNPROTECT, FALSE, _r_locale_getstring (IDS_UNPROTECT));
-						_r_menu_setitemtextformat (hsubmenu, IDM_REFRESH, FALSE, L"%s\tF5", _r_locale_getstring (IDS_REFRESH));
-						_r_menu_setitemtextformat (hsubmenu, IDM_COPY, FALSE, L"%s\tCtrl+C", _r_locale_getstring (IDS_COPY));
-						_r_menu_setitemtext (hsubmenu, 7, TRUE, _r_locale_getstring (IDS_SERVICE));
-						_r_menu_setitemtext (hsubmenu, IDM_LOCK, FALSE, _r_locale_getstring (IDS_LOCK));
-						_r_menu_setitemtext (hsubmenu, IDM_UNLOCK, FALSE, _r_locale_getstring (IDS_UNLOCK));
-						_r_menu_setitemtext (hsubmenu, IDM_UNLOCK_ALL, FALSE, _r_locale_getstring (IDS_UNLOCK_ALL));
-						_r_menu_setitemtext (hsubmenu, IDM_EJECT, FALSE, _r_locale_getstring (IDS_EJECT));
-						_r_menu_setitemtext (hsubmenu, IDM_FORMAT, FALSE, _r_locale_getstring (IDS_FORMAT));
-						_r_menu_setitemtext (hsubmenu, IDM_PROPERTY, FALSE, _r_locale_getstring (IDS_PROPERTIES));
-
-						_r_menu_popup (hsubmenu, hwnd, NULL, TRUE);
-					}
-
-					DestroyMenu (hmenu);
-
-					break;
-				}
-
 				case NM_DBLCLK:
 				{
 					LPNMITEMACTIVATE lpnmia;
 
-					if (nmlp->idFrom != IDC_DRIVES)
+					if (nmlp->idFrom != IDC_LISTVIEW)
 						break;
 
 					lpnmia = (LPNMITEMACTIVATE)lparam;
 
 					if (lpnmia->iItem != INT_ERROR)
-						_r_ctrl_sendcommand (hwnd, IDM_OPEN, 0);
+						_r_wnd_sendcommand (hwnd, IDM_OPEN, 0);
 
 					break;
 				}
@@ -1114,12 +1120,9 @@ LRESULT CALLBACK DlgProc
 
 				case IDM_ALWAYSONTOP_CHK:
 				{
-					BOOLEAN new_val;
-
-					new_val = !_r_config_getboolean (L"AlwaysOnTop", FALSE, NULL);
+					BOOLEAN new_val = _r_config_invertboolean (L"AlwaysOnTop", FALSE, NULL);
 
 					_r_menu_checkitem (GetMenu (hwnd), ctrl_id, 0, MF_BYCOMMAND, new_val);
-					_r_config_setboolean (L"AlwaysOnTop", new_val, NULL);
 
 					_r_wnd_top (hwnd, new_val);
 
@@ -1128,9 +1131,7 @@ LRESULT CALLBACK DlgProc
 
 				case IDM_DARKMODE_CHK:
 				{
-					BOOLEAN new_val;
-
-					new_val = !_r_theme_isenabled ();
+					BOOLEAN new_val = !_r_theme_isenabled ();
 
 					_r_menu_checkitem (GetMenu (hwnd), ctrl_id, 0, MF_BYCOMMAND, new_val);
 					_r_theme_enable (hwnd, new_val);
@@ -1141,9 +1142,7 @@ LRESULT CALLBACK DlgProc
 
 				case IDM_CHECKUPDATES_CHK:
 				{
-					BOOLEAN new_val;
-
-					new_val = !_r_update_isenabled (FALSE);
+					BOOLEAN new_val = !_r_update_isenabled (FALSE);
 
 					_r_menu_checkitem (GetMenu (hwnd), ctrl_id, 0, MF_BYCOMMAND, new_val);
 					_r_update_enable (new_val);
@@ -1174,12 +1173,12 @@ LRESULT CALLBACK DlgProc
 					PR_STRING string;
 					INT item_id = INT_ERROR;
 
-					if (!_r_listview_getselectedcount (hwnd, IDC_DRIVES))
+					if (!_r_listview_getselectedcount (hwnd, IDC_LISTVIEW))
 						break;
 
-					while ((item_id = _r_listview_getnextselected (hwnd, IDC_DRIVES, item_id)) != INT_ERROR)
+					while ((item_id = _r_listview_getnextselected (hwnd, IDC_LISTVIEW, item_id)) != INT_ERROR)
 					{
-						string = _r_listview_getitemtext (hwnd, IDC_DRIVES, item_id, 0);
+						string = _r_listview_getitemtext (hwnd, IDC_LISTVIEW, item_id, 0);
 
 						if (!string)
 							continue;
@@ -1205,12 +1204,12 @@ LRESULT CALLBACK DlgProc
 					INT item_id = INT_ERROR;
 					NTSTATUS status;
 
-					if (!_r_listview_getselectedcount (hwnd, IDC_DRIVES))
+					if (!_r_listview_getselectedcount (hwnd, IDC_LISTVIEW))
 						break;
 
-					while ((item_id = _r_listview_getnextselected (hwnd, IDC_DRIVES, item_id)) != INT_ERROR)
+					while ((item_id = _r_listview_getnextselected (hwnd, IDC_LISTVIEW, item_id)) != INT_ERROR)
 					{
-						string = _r_listview_getitemtext (hwnd, IDC_DRIVES, item_id, 0);
+						string = _r_listview_getitemtext (hwnd, IDC_LISTVIEW, item_id, 0);
 
 						if (!string)
 							continue;
@@ -1234,12 +1233,12 @@ LRESULT CALLBACK DlgProc
 					INT item_id = INT_ERROR;
 					NTSTATUS status;
 
-					if (!_r_listview_getselectedcount (hwnd, IDC_DRIVES))
+					if (!_r_listview_getselectedcount (hwnd, IDC_LISTVIEW))
 						break;
 
-					while ((item_id = _r_listview_getnextselected (hwnd, IDC_DRIVES, item_id)) != INT_ERROR)
+					while ((item_id = _r_listview_getnextselected (hwnd, IDC_LISTVIEW, item_id)) != INT_ERROR)
 					{
-						string = _r_listview_getitemtext (hwnd, IDC_DRIVES, item_id, 0);
+						string = _r_listview_getitemtext (hwnd, IDC_LISTVIEW, item_id, 0);
 
 						if (!string)
 							continue;
@@ -1263,12 +1262,12 @@ LRESULT CALLBACK DlgProc
 					INT item_id = INT_ERROR;
 					NTSTATUS status;
 
-					if (!_r_listview_getselectedcount (hwnd, IDC_DRIVES))
+					if (!_r_listview_getselectedcount (hwnd, IDC_LISTVIEW))
 						break;
 
-					while ((item_id = _r_listview_getnextselected (hwnd, IDC_DRIVES, item_id)) != INT_ERROR)
+					while ((item_id = _r_listview_getnextselected (hwnd, IDC_LISTVIEW, item_id)) != INT_ERROR)
 					{
-						string = _r_listview_getitemtext (hwnd, IDC_DRIVES, item_id, 0);
+						string = _r_listview_getitemtext (hwnd, IDC_LISTVIEW, item_id, 0);
 
 						if (!string)
 							continue;
@@ -1292,12 +1291,12 @@ LRESULT CALLBACK DlgProc
 					INT item_id = INT_ERROR;
 					NTSTATUS status;
 
-					if (!_r_listview_getselectedcount (hwnd, IDC_DRIVES))
+					if (!_r_listview_getselectedcount (hwnd, IDC_LISTVIEW))
 						break;
 
-					while ((item_id = _r_listview_getnextselected (hwnd, IDC_DRIVES, item_id)) != INT_ERROR)
+					while ((item_id = _r_listview_getnextselected (hwnd, IDC_LISTVIEW, item_id)) != INT_ERROR)
 					{
-						string = _r_listview_getitemtext (hwnd, IDC_DRIVES, item_id, 0);
+						string = _r_listview_getitemtext (hwnd, IDC_LISTVIEW, item_id, 0);
 
 						if (!string)
 							continue;
@@ -1329,12 +1328,12 @@ LRESULT CALLBACK DlgProc
 					INT item_id = INT_ERROR;
 					NTSTATUS status;
 
-					if (!_r_listview_getselectedcount (hwnd, IDC_DRIVES))
+					if (!_r_listview_getselectedcount (hwnd, IDC_LISTVIEW))
 						break;
 
-					while ((item_id = _r_listview_getnextselected (hwnd, IDC_DRIVES, item_id)) != INT_ERROR)
+					while ((item_id = _r_listview_getnextselected (hwnd, IDC_LISTVIEW, item_id)) != INT_ERROR)
 					{
-						string = _r_listview_getitemtext (hwnd, IDC_DRIVES, item_id, 0);
+						string = _r_listview_getitemtext (hwnd, IDC_LISTVIEW, item_id, 0);
 
 						if (!string)
 							continue;
@@ -1355,25 +1354,25 @@ LRESULT CALLBACK DlgProc
 				case IDM_FORMAT:
 				{
 					PR_STRING string;
-					ULONG_PTR drive_number;
+					ULONG_PTR index;
 					INT item_id;
 
-					if (!_r_listview_getselectedcount (hwnd, IDC_DRIVES))
+					if (!_r_listview_getselectedcount (hwnd, IDC_LISTVIEW))
 						break;
 
-					item_id = _r_listview_getnextselected (hwnd, IDC_DRIVES, INT_ERROR);
+					item_id = _r_listview_getnextselected (hwnd, IDC_LISTVIEW, INT_ERROR);
 
 					if (item_id == INT_ERROR)
 						break;
 
-					string = _r_listview_getitemtext (hwnd, IDC_DRIVES, item_id, 0);
+					string = _r_listview_getitemtext (hwnd, IDC_LISTVIEW, item_id, 0);
 
 					if (!string)
 						break;
 
-					drive_number = _app_getdrivenumber (&string->sr);
+					index = _app_getdrivenumber (&string->sr);
 
-					SHFormatDrive (hwnd, (INT)drive_number, SHFMT_ID_DEFAULT, 0);
+					SHFormatDrive (hwnd, (INT)index, SHFMT_ID_DEFAULT, 0);
 
 					_app_refreshdrives (hwnd);
 
@@ -1387,21 +1386,21 @@ LRESULT CALLBACK DlgProc
 					PR_STRING string;
 					INT item_id;
 
-					if (!_r_listview_getselectedcount (hwnd, IDC_DRIVES))
+					if (!_r_listview_getselectedcount (hwnd, IDC_LISTVIEW))
 						break;
 
-					item_id = _r_listview_getnextselected (hwnd, IDC_DRIVES, INT_ERROR);
+					item_id = _r_listview_getnextselected (hwnd, IDC_LISTVIEW, INT_ERROR);
 
 					if (item_id == INT_ERROR)
 						break;
 
-					string = _r_listview_getitemtext (hwnd, IDC_DRIVES, item_id, 0);
+					string = _r_listview_getitemtext (hwnd, IDC_LISTVIEW, item_id, 0);
 
 					if (!string)
 						break;
 
 					if (!_app_driveislocked (&string->sr))
-						DialogBoxParamW (NULL, MAKEINTRESOURCEW (IDD_PROPERTIES), hwnd, &PropertiesDlgProc, (LPARAM)string);
+						_r_wnd_createmodalwindow (_r_sys_getimagebase (), MAKEINTRESOURCE (IDD_PROPERTIES), hwnd, &PropertiesDlgProc, string);
 
 					_r_obj_dereference (string);
 
@@ -1434,10 +1433,10 @@ INT APIENTRY wWinMain (
 	if (!_r_app_initialize (NULL))
 		return ERROR_APP_INIT_FAILURE;
 
-	hwnd = _r_app_createwindow (hinst, MAKEINTRESOURCEW (IDD_MAIN), MAKEINTRESOURCEW (IDI_MAIN), &DlgProc);
+	hwnd = _r_app_createwindow (hinst, MAKEINTRESOURCE (IDD_MAIN), MAKEINTRESOURCE (IDI_MAIN), &DlgProc);
 
 	if (!hwnd)
 		return ERROR_APP_INIT_FAILURE;
 
-	return _r_wnd_message_callback (hwnd, MAKEINTRESOURCEW (IDA_MAIN));
+	return _r_wnd_message_callback (hwnd, MAKEINTRESOURCE (IDA_MAIN));
 }
