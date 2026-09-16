@@ -861,8 +861,7 @@ INT_PTR CALLBACK PropertiesDlgProc (
 	return 0;
 }
 
-LRESULT CALLBACK DlgProc
-(
+LRESULT CALLBACK DlgProc (
 	_In_ HWND hwnd,
 	_In_ UINT msg,
 	_In_ WPARAM wparam,
@@ -1400,7 +1399,7 @@ LRESULT CALLBACK DlgProc
 						break;
 
 					if (!_app_driveislocked (&string->sr))
-						_r_wnd_createmodalwindow (_r_sys_getimagebase (), MAKEINTRESOURCE (IDD_PROPERTIES), hwnd, &PropertiesDlgProc, string);
+						_r_wnd_createmodalwindow (_r_sys_getimagebase (), MAKEINTRESOURCE (IDD_PROPERTIES), hwnd, &PropertiesDlgProc, _r_obj_reference (string));
 
 					_r_obj_dereference (string);
 
